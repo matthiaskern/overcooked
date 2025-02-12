@@ -15,9 +15,9 @@ Robots need to learn cooperating with each other to prepare a certain dish accor
 
 - To install all the dependencies:
   ```
-  git clone https://github.com/WeihaoTan/gym-macro-overcooked.git
-  cd gym-macro-overcooked/
-  pip install -e .
+  conda create -n overcooked python=3.9 -y
+  conda activate oercooked
+  pip install -r requirements.txt
   ```
 
 ## Code structure
@@ -36,6 +36,25 @@ Robots need to learn cooperating with each other to prepare a certain dish accor
 - `./gym_macro_overcooked/render`: resources and code for render.
 
 ## Usage
+### Model Training and Testing
+
+To train a model and immediately test it after training, run:
+```bash
+python script.py --exp_name my_experiment --train --test
+```
+If you want to train the model without testing:
+```
+python script.py --exp_name my_experiment --train
+```
+If you have a pre-trained model and want to test it:
+```
+python script.py --exp_name my_experiment --test
+```
+Notes
+- Replace `my_experiment` with a unique experiment name to save logs and models in `./experiments/my_experiment/`.
+- The trained model is saved in `./experiments/my_experiment/model/`.
+- Ensure the model exists before testing (`--test`), otherwise, an error will occur.
+
 ### Manual control
 ```
 python play.py
