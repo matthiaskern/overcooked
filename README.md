@@ -15,8 +15,8 @@ Robots need to learn cooperating with each other to prepare a certain dish accor
 
 - To install all the dependencies:
   ```
-  conda create -n overcooked python=3.9 -y
-  conda activate oercooked
+  conda create -n overcooked python=3.9
+  conda activate overcooked
   pip install -r requirements.txt
   ```
 
