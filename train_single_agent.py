@@ -1,23 +1,21 @@
+import argparse
+import os
 import gym
 import matplotlib.pyplot as plt
-import pygame
-from stable_baselines3 import PPO, DQN
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.logger import configure
 import time
-# Import your custom environment
-from gym_macro_overcooked.overcooked_V1 import Overcooked_V1
 import torch
 import random
+from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.logger import configure
+from gym_macro_overcooked.overcooked_V1 import Overcooked_V1
+
+# Set random seed for reproducibility
 random.seed(42)
-
-
+torch.manual_seed(42)
 
 class SingleAgentWrapper(gym.Wrapper):
-    """
-    A wrapper to treat a multi-agent environment as a single-agent environment for training.
-    It assumes the environment returns lists for observations and rewards, and it will take the first agent's view.
-    """
+    """Wrapper to handle a multi-agent environment as a single-agent one."""
     def __init__(self, env):
         super(SingleAgentWrapper, self).__init__(env)
         self.observation_space = env.observation_space
@@ -28,148 +26,167 @@ class SingleAgentWrapper(gym.Wrapper):
         return obs[0] if isinstance(obs, list) else obs
 
     def step(self, action):
-        actions = [action, 4]  # Adjust according to your needs
+        actions = [action, 4]  # Adjust if needed
         obs, rewards, dones, info = self.env.step(actions)
         return obs[0], rewards[0], dones, info
 
-# Define your environment parameters
-rewardList = {
-    # "minitask finished": 0,
-    # "minitask failed": 0,
-    # "metatask finished": 0,
-    "metatask failed": 0,
-    "goodtask finished": 5,
-    # "goodtask failed": 0,
-    "subtask finished": 10,
-    # "subtask failed": 0,
-    "correct delivery": 200,
-    "wrong delivery": -50,
-    # "wrong delivery": -5, # 鼓励多去deliver，多试错
-    "step penalty": -0.1
-    # "step penalty": -1
-}
-
-
-# env_id = 'Overcooked-v1'
-env_id = 'Overcooked-shuai-v0'
-
-
-env_params = {
-    'grid_dim': [5, 5],
-    'task': "tomato salad",
-    'rewardList': rewardList,
-    'map_type': "A",
-    'n_agent': 2,
-    'obs_radius': 0,
-    'mode': "vector",
-    'debug': True
-}
-
-# Create and wrap the environment
-env = gym.make(env_id, **env_params)
-env = SingleAgentWrapper(env)
-
-
-
 
 class CumulativeRewardCallback(BaseCallback):
+    """Tracks cumulative rewards and saves the model periodically."""
     def __init__(self, save_freq, save_path, verbose=0):
-        super(CumulativeRewardCallback, self).__init__(verbose)
+        super().__init__(verbose)
         self.save_freq = save_freq
         self.save_path = save_path
         self.cumulative_rewards = []
         self.cumulative_reward = 0.0
-        self.step_counter = 0  # Initialize a step counter
+        self.step_counter = 0
 
     def _on_step(self) -> bool:
-        # Increment the step counter
         self.step_counter += 1
 
-        # Print the current step every 1,000 steps
+        # Log step progress
         if self.step_counter % 1000 == 0:
-            print(f"Current step: {self.step_counter}")
+            print(f"Step: {self.step_counter}")
 
-        # Save the model every save_freq steps
+        # Save model periodically
         if self.step_counter % self.save_freq == 0:
-            model_path = f"{self.save_path}_step_{self.step_counter}"
+            model_path = f"{self.save_path}/step_{self.step_counter}.zip"
             self.model.save(model_path)
-            print(f"Model saved to {model_path}")
+            print(f"Model saved at {model_path}")
 
         # Accumulate rewards
-        self.cumulative_reward += self.locals['rewards'][0]  # Access the reward correctly
-        self.cumulative_rewards.append(self.cumulative_reward)
+        if 'rewards' in self.locals:
+            self.cumulative_reward += self.locals['rewards'][0]
+            self.cumulative_rewards.append(self.cumulative_reward)
+
         return True
 
     def get_cumulative_rewards(self):
         return self.cumulative_rewards
 
-# Create the callback with the desired save frequency and path
-reward_callback = CumulativeRewardCallback(save_freq=50000, save_path='trust_B_55_lowaction')
+
+def create_env():
+    """Creates and wraps the environment."""
+    reward_config = {
+        "metatask failed": 0,
+        "goodtask finished": 5,
+        "subtask finished": 10,
+        "correct delivery": 200,
+        "wrong delivery": -50,
+        "step penalty": -0.1,
+    }
+
+    env_id = "Overcooked-v1"
+    env_params = {
+        "grid_dim": [7, 7],
+        "task": "tomato salad",
+        "rewardList": reward_config,
+        "map_type": "A",
+        "n_agent": 2,
+        "obs_radius": 0,
+        "mode": "vector",
+        "debug": True,
+    }
+
+    env = gym.make(env_id, **env_params)
+    return SingleAgentWrapper(env)
 
 
+def train_model(env, exp_name):
+    """Trains the PPO model on the environment."""
+    exp_dir = f"./experiments/{exp_name}"
+    log_dir = f"{exp_dir}/logs"
+    save_path = f"{exp_dir}/model"
 
-new_logger = configure('./logs/', ["csv", "tensorboard"])  # Remove "stdout" to prevent console logging
+    # Ensure directories exist
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(save_path, exist_ok=True)
 
+    new_logger = configure(log_dir, ["csv", "tensorboard"])
 
-# Define the model
-ppo_params = {
-    'learning_rate': 1e-3,    # Starting learning rate
-    'n_steps': 128,           # 多少步更新一次策略
-    'batch_size': 64,         # 每次更新策略的时候使用多少步的数据
-    'n_epochs': 10,            # 表示在每次策略更新时，算法将对收集到的经验数据进行多少次遍历和优化。也就是说，每当从环境中收集了一批数据（通常是 n_steps 个时间步的数据）后，算法会使用这些数据进行 n_epochs 次优化。
-    'gamma': 0.99,            # Discount factor
-    'gae_lambda': 0.98,       # Lambda for GAE
-    'clip_range': 0.05,       # PPO clipping factor
-    'ent_coef': 0.1,          # Entropy coefficient
-    'vf_coef': 0.1,           # Value function coefficient
-    'max_grad_norm': 0.1,     # Max gradient norm
-    'verbose': 1,             # Verbosity level
-    # 'device': 'cuda' if torch.cuda.is_available() else 'cpu',  # Use GPU if available
-    'verbose': 0,             # Set verbosity level to 0 to minimize output during training
-}
+    ppo_params = {
+        "learning_rate": 1e-3,
+        "n_steps": 128,
+        "batch_size": 64,
+        "n_epochs": 10,
+        "gamma": 0.99,
+        "gae_lambda": 0.98,
+        "clip_range": 0.05,
+        "ent_coef": 0.1,
+        "vf_coef": 0.1,
+        "max_grad_norm": 0.1,
+        "verbose": 0,
+        "device": "cuda" if torch.cuda.is_available() else "cpu",
+    }
 
+    model = PPO("MlpPolicy", env, **ppo_params)
+    model.set_logger(new_logger)
 
-# Initialize the PPO model with these parameters
-model = PPO("MlpPolicy", env, **ppo_params)
+    reward_callback = CumulativeRewardCallback(save_freq=500, save_path=save_path) # TODO: save_freq=50000
 
+    model.learn(total_timesteps=5000, callback=reward_callback) # TODO: total_timesteps=5_000_000
+    model.save(f"{save_path}/final_model.zip")
 
-
-# model.set_logger(new_logger)
-
-# # Create the callback
-# # reward_callback = CumulativeRewardCallback()
-
-# # Train the model with the custom callback
-# model.learn(total_timesteps=5000000, callback=reward_callback)
-
-# model.save("A_55_lowaction_five_million_step")
-
-# # Retrieve cumulative rewards
-# cumulative_rewards = reward_callback.get_cumulative_rewards()
-
-# # Ensure there's data to plot
-# if cumulative_rewards:
-#     # Plot the cumulative reward curve
-#     plt.plot(cumulative_rewards)
-#     plt.xlabel('Step')
-#     plt.ylabel('Cumulative Reward')
-#     plt.title('Cumulative Reward Curve')
-#     plt.show()
-# else:
-#     print("No cumulative rewards were logged. Please check the environment and reward logging.")
+    return model, reward_callback
 
 
-model.load("A_55_lowaction_five_million_step")
-# Test the trained model
-obs = env.reset()
-for step in range(100):
-    action, _states = model.predict(obs)
-    obs, rewards, dones, info = env.step(action)
-    if dones:
-        break
-    env.render()
-    time.sleep(0.1)
+def plot_rewards(reward_callback):
+    """Plots cumulative rewards after training."""
+    cumulative_rewards = reward_callback.get_cumulative_rewards()
+
+    if cumulative_rewards:
+        plt.plot(cumulative_rewards)
+        plt.xlabel("Step")
+        plt.ylabel("Cumulative Reward")
+        plt.title("Cumulative Reward Curve")
+        plt.show()
+    else:
+        print("No cumulative rewards logged. Check environment and reward tracking.")
 
 
-# Close the environment
-env.close()
+def test_model(env, model_path):
+    """Loads and tests the trained model."""
+    try:
+        model = PPO.load(model_path)
+        print(f"Model loaded from {model_path}")
+    except FileNotFoundError:
+        print(f"Error: Model file {model_path} not found.")
+        return
+
+    obs = env.reset()
+    for step in range(100):
+        action, _states = model.predict(obs)
+        obs, rewards, done, info = env.step(action)
+
+        if done:
+            break
+
+        env.render()
+        time.sleep(0.1)
+
+    env.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train or test PPO model on Overcooked environment.")
+    parser.add_argument("--exp_name", type=str, default="reproduce",
+        help="Experiment name (used for saving logs and models)")
+    parser.add_argument("--train", action="store_true", help="Enable training mode", default=True)
+    parser.add_argument("--test", action="store_true", help="Enable testing mode", default=True)
+    
+    args = parser.parse_args()
+
+    env = create_env()
+    if args.train:
+        print(f"Starting training: {args.exp_name}")
+        model, reward_callback = train_model(env, args.exp_name)
+        plot_rewards(reward_callback)
+
+    if args.test:
+        model_path = f"./experiments/{args.exp_name}/model/final_model.zip"
+        
+        if os.path.exists(model_path):
+            print(f"Starting testing using model: {model_path}")
+            test_model(env, model_path)
+        else:
+            print(f"Model file not found: {model_path}. Ensure training has been completed first.")
