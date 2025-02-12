@@ -154,6 +154,7 @@ def test_model(env, model_path):
         return
 
     obs = env.reset()
+    env.game.on_init()
     for step in range(100):
         action, _states = model.predict(obs)
         obs, rewards, done, info = env.step(action)

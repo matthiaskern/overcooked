@@ -39,13 +39,12 @@ class Game:
         self.holding_container_size = tuple((self.container_scale * np.asarray(self.holding_size)).astype(int))
 
         pygame.init()
-        self.screen = pygame.display.set_mode((self.width, self.height))
 
 
-    def on_init(self):
+    def on_init(self, play=True):
         pygame.init()
 
-        if self.play:
+        if play:
             self.screen = pygame.display.set_mode((self.width, self.height))
         else:
             # Create a hidden surface
