@@ -1,9 +1,10 @@
-import gym
+import gymnasium as gym
 import numpy as np
 from .render.game import Game
-from gym import spaces
+from gymnasium import spaces
 from .items import Tomato, Lettuce, Onion, Plate, Knife, Delivery, Agent, Food
 import copy
+from ray.rllib.env import MultiAgentEnv
 
 DIRECTION = [(0,1), (1,0), (0,-1), (-1,0)]
 ITEMNAME = ["space", "counter", "agent", "tomato", "lettuce", "plate", "knife", "delivery", "onion"]
@@ -11,7 +12,7 @@ ITEMIDX= {"space": 0, "counter": 1, "agent": 2, "tomato": 3, "lettuce": 4, "plat
 AGENTCOLOR = ["blue", "magenta", "green", "yellow"]
 TASKLIST = ["tomato salad", "lettuce salad", "onion salad", "lettuce-tomato salad", "onion-tomato salad", "lettuce-onion salad", "lettuce-onion-tomato salad"]
 
-class Overcooked_V1(gym.Env):
+class Overcooked_V1(MultiAgentEnv):
 
     """
     Overcooked Domain Description
@@ -25,13 +26,11 @@ class Overcooked_V1(gym.Env):
     4) Only unchopped food is allowed to be chopped;
     """
 
-    metadata = {
-        'render.modes': ['human', 'rgb_array'],
-        'video.frames_per_second' : 5
-        }
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 5}
+
 
     def __init__(self, grid_dim, task, rewardList, map_type = "A", n_agent = 2, obs_radius = 2, mode = "vector", debug = False):
-
+        super().__init__()
         """
         Parameters
         ----------
@@ -53,10 +52,11 @@ class Overcooked_V1(gym.Env):
         debug : bool
             Whehter print the debug information.
         """
+        self.agents = self.possible_agents = [0, 1]
 
         self.xlen, self.ylen = grid_dim
-        if debug:
-        	self.game = Game(self)
+
+        self.game = Game(self)
 
         self.task = task
         self.rewardList = rewardList
@@ -195,17 +195,12 @@ class Overcooked_V1(gym.Env):
         self._createItems()
         self.n_agent = len(self.agent)
 
+
+
+        obs_size = len(self._initObs()[self.agents[0]])
+        self.observation_space = spaces.Dict({agent: spaces.Box(low=0, high=1, shape=(obs_size,), dtype=np.float32) for agent in self.agents})
         #action: move(up, down, left, right), stay
-        self.action_space = spaces.Discrete(5)
-
-        #Observation: agent(pos[x,y]) dim = 2
-        #    knife(pos[x,y]) dim = 2
-        #    delivery (pos[x,y]) dim = 2
-        #    plate(pos[x,y]) dim = 2
-        #    food(pos[x,y]/status) dim = 3
-
-        self._initObs()
-        self.observation_space = spaces.Box(low=0, high=1, shape=(len(self._get_obs()[0]),), dtype=np.float32)
+        self.action_space =  spaces.Dict({agent: spaces.Discrete(5) for agent in self.agents})
 
 
     def _createItems(self):
@@ -248,12 +243,12 @@ class Overcooked_V1(gym.Env):
             obs.append(item.y / self.ylen)
             if isinstance(item, Food):
                 obs.append(item.cur_chopped_times / item.required_chopped_times)
-        obs += self.oneHotTask 
+        obs += self.oneHotTask
 
         for agent in self.agent:
             agent.obs = obs
-        return [np.array(obs)] * self.n_agent
 
+        return {agent: np.array(obs) for agent in self.agents}
 
     def _get_vector_state(self):
         state = []
@@ -266,10 +261,10 @@ class Overcooked_V1(gym.Env):
                 state.append(item.cur_chopped_times / item.required_chopped_times)
 
         state += self.oneHotTask
-        return [np.array(state)] * self.n_agent
+        return np.asarray(state, dtype=np.float32)
 
     def _get_image_state(self):
-        return [self.game.get_image_obs()] * self.n_agent
+        return self.game.get_image_obs()
 
     def _get_obs(self):
         """
@@ -282,12 +277,12 @@ class Overcooked_V1(gym.Env):
         vec_obs = self._get_vector_obs()
         if self.obs_radius > 0:
             if self.mode == "vector":
-                return vec_obs
+                return {agent: vec_obs for agent in self.agents}
             elif self.mode == "image":
                 return self._get_image_obs()
         else:
             if self.mode == "vector":
-                return self._get_vector_state()
+                return {agent: self._get_vector_state() for agent in self.agents}
             elif self.mode == "image":
                 return self._get_image_state()
 
@@ -393,7 +388,7 @@ class Overcooked_V1(gym.Env):
             agent.pomap[agent.x][agent.y] = ITEMIDX["agent"]
             obs += self.oneHotTask 
             agent.obs = obs
-            po_obs.append(np.array(obs))
+            po_obs.append(np.array(obs, dtype=np.float32))
         return po_obs
 
     def _get_image_obs(self):
@@ -461,7 +456,7 @@ class Overcooked_V1(gym.Env):
     def action_space_sample(self, i):
         return np.random.randint(self.action_spaces[i].n)
     
-    def reset(self):
+    def reset(self, *, seed=None, options=None):
 
         """
         Returns
@@ -476,7 +471,7 @@ class Overcooked_V1(gym.Env):
         # if self.debug:
         #     self.game.on_cleanup()
 
-        return self._get_obs()
+        return self._get_obs(), {}
     
     def step(self, action):
 
@@ -494,7 +489,6 @@ class Overcooked_V1(gym.Env):
         terminate : list
         info : dictionary
         """
-
         reward = self.rewardList["step penalty"]
         done = False
         info = {}
@@ -648,8 +642,11 @@ class Overcooked_V1(gym.Env):
             for agent in self.agent:
                 if agent.moved == False:
                     all_action_done = False
-        
-        return self._get_obs(), [reward] * self.n_agent, done, info
+
+        truncateds = {agent: done for agent in self.agents}
+        terminateds = {agent: done for agent in self.agents}
+        truncateds["__all__"] = done
+        return self._get_obs(), {agent: reward for agent in self.agents}, terminateds, truncateds, info
 
     def render(self, mode='human'):
         return self.game.on_render()
