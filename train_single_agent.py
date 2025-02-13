@@ -76,9 +76,9 @@ def create_env():
         "step penalty": -0.1,
     }
 
-    env_id = "Overcooked-v1"
+    env_id = "Overcooked-shuai-v0"
     env_params = {
-        "grid_dim": [7, 7],
+        "grid_dim": [5, 5],
         "task": "tomato salad",
         "rewardList": reward_config,
         "map_type": "A",
@@ -122,9 +122,9 @@ def train_model(env, exp_name):
     model = PPO("MlpPolicy", env, **ppo_params)
     model.set_logger(new_logger)
 
-    reward_callback = CumulativeRewardCallback(save_freq=500, save_path=save_path) # TODO: save_freq=50000
+    reward_callback = CumulativeRewardCallback(save_freq=50000, save_path=save_path) 
 
-    model.learn(total_timesteps=5000, callback=reward_callback) # TODO: total_timesteps=5_000_000
+    model.learn(total_timesteps=5_000_000, callback=reward_callback) 
     model.save(f"{save_path}/final_model.zip")
 
     return model, reward_callback
