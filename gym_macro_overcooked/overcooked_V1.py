@@ -1,36 +1,39 @@
-import gymnasium as gym
+import gym
 import numpy as np
 from .render.game import Game
-from gymnasium import spaces
+from gym import spaces
 from .items import Tomato, Lettuce, Onion, Plate, Knife, Delivery, Agent, Food
 import copy
-from ray.rllib.env import MultiAgentEnv
 
-DIRECTION = [(0,1), (1,0), (0,-1), (-1,0)]
+DIRECTION = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 ITEMNAME = ["space", "counter", "agent", "tomato", "lettuce", "plate", "knife", "delivery", "onion"]
-ITEMIDX= {"space": 0, "counter": 1, "agent": 2, "tomato": 3, "lettuce": 4, "plate": 5, "knife": 6, "delivery": 7, "onion": 8}
+ITEMIDX = {"space": 0, "counter": 1, "agent": 2, "tomato": 3, "lettuce": 4, "plate": 5, "knife": 6, "delivery": 7,
+           "onion": 8}
 AGENTCOLOR = ["blue", "magenta", "green", "yellow"]
-TASKLIST = ["tomato salad", "lettuce salad", "onion salad", "lettuce-tomato salad", "onion-tomato salad", "lettuce-onion salad", "lettuce-onion-tomato salad"]
+TASKLIST = ["tomato salad", "lettuce salad", "onion salad", "lettuce-tomato salad", "onion-tomato salad",
+            "lettuce-onion salad", "lettuce-onion-tomato salad"]
 
-class Overcooked_V1(MultiAgentEnv):
 
+class Overcooked_V1(gym.Env):
     """
     Overcooked Domain Description
     ------------------------------
     Agent with primitive actions ["right", "down", "left", "up"]
     TASKLIST = ["tomato salad", "lettuce salad", "onion salad", "lettuce-tomato salad", "onion-tomato salad", "lettuce-onion salad", "lettuce-onion-tomato salad"]
-    
+
     1) Agent is allowed to pick up/put down food/plate on the counter;
     2) Agent is allowed to chop food into pieces if the food is on the cutting board counter;
     3) Agent is allowed to deliver food to the delivery counter;
     4) Only unchopped food is allowed to be chopped;
     """
 
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 5}
+    metadata = {
+        'render.modes': ['human', 'rgb_array'],
+        'video.frames_per_second': 5
+    }
 
+    def __init__(self, grid_dim, task, rewardList, map_type="A", n_agent=2, obs_radius=2, mode="vector", debug=False):
 
-    def __init__(self, grid_dim, task, rewardList, map_type = "A", n_agent = 2, obs_radius = 2, mode = "vector", debug = False):
-        super().__init__()
         """
         Parameters
         ----------
@@ -41,7 +44,7 @@ class Overcooked_V1(MultiAgentEnv):
         rewardList : dictionary
             The list of the reward.
             e.g rewardList = {"subtask finished": 10, "correct delivery": 200, "wrong delivery": -5, "step penalty": -0.1}
-        map_type : str 
+        map_type : str
             The type of the map(A/B/C).
         n_agent: int
             The number of the agents.
@@ -52,11 +55,10 @@ class Overcooked_V1(MultiAgentEnv):
         debug : bool
             Whehter print the debug information.
         """
-        self.agents = self.possible_agents = [0, 1]
 
         self.xlen, self.ylen = grid_dim
-
-        self.game = Game(self)
+        if debug:
+            self.game = Game(self)
 
         self.task = task
         self.rewardList = rewardList
@@ -71,117 +73,117 @@ class Overcooked_V1(MultiAgentEnv):
         if self.xlen == 7 and self.ylen == 7:
             if self.n_agent == 2:
                 if self.mapType == "A":
-                    map =  [[1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 0, 2, 0, 4],
-                            [6, 0, 0, 0, 0, 0, 8],
-                            [7, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 0, 2, 0, 4],
+                           [6, 0, 0, 0, 0, 0, 8],
+                           [7, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 5, 1]]
                 elif self.mapType == "B":
-                    map =  [[1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 1, 2, 0, 4],
-                            [6, 0, 0, 1, 0, 0, 8],
-                            [7, 0, 0, 1, 0, 0, 1],
-                            [1, 0, 0, 1, 0, 0, 1],
-                            [1, 0, 0, 1, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 5, 1]]  
+                    map = [[1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 1, 2, 0, 4],
+                           [6, 0, 0, 1, 0, 0, 8],
+                           [7, 0, 0, 1, 0, 0, 1],
+                           [1, 0, 0, 1, 0, 0, 1],
+                           [1, 0, 0, 1, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 5, 1]]
                 elif self.mapType == "C":
-                    map =  [[1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 1, 2, 0, 4],
-                            [6, 0, 0, 1, 0, 0, 8],
-                            [7, 0, 0, 1, 0, 0, 1],
-                            [1, 0, 0, 1, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 1, 2, 0, 4],
+                           [6, 0, 0, 1, 0, 0, 8],
+                           [7, 0, 0, 1, 0, 0, 1],
+                           [1, 0, 0, 1, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 5, 1]]
             elif self.n_agent == 3:
                 if self.mapType == "A":
-                    map =  [[1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 0, 2, 0, 4],
-                            [6, 0, 0, 0, 0, 0, 8],
-                            [7, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 2, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 0, 2, 0, 4],
+                           [6, 0, 0, 0, 0, 0, 8],
+                           [7, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 2, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 5, 1]]
                 elif self.mapType == "B":
-                    map =  [[1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 1, 2, 0, 4],
-                            [6, 0, 0, 1, 0, 0, 8],
-                            [7, 0, 0, 1, 0, 0, 1],
-                            [1, 0, 0, 1, 0, 0, 1],
-                            [1, 0, 2, 1, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 5, 1]] 
+                    map = [[1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 1, 2, 0, 4],
+                           [6, 0, 0, 1, 0, 0, 8],
+                           [7, 0, 0, 1, 0, 0, 1],
+                           [1, 0, 0, 1, 0, 0, 1],
+                           [1, 0, 2, 1, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 5, 1]]
                 elif self.mapType == "C":
-                    map =  [[1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 1, 2, 0, 4],
-                            [6, 0, 0, 1, 0, 0, 8],
-                            [7, 0, 0, 1, 0, 0, 1],
-                            [1, 0, 0, 1, 0, 0, 1],
-                            [1, 0, 2, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 1, 2, 0, 4],
+                           [6, 0, 0, 1, 0, 0, 8],
+                           [7, 0, 0, 1, 0, 0, 1],
+                           [1, 0, 0, 1, 0, 0, 1],
+                           [1, 0, 2, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 5, 1]]
         elif self.xlen == 9 and self.ylen == 9:
             if self.n_agent == 2:
                 if self.mapType == "A":
-                    map =  [[1, 1, 1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 0, 0, 0, 2, 0, 4],
-                            [6, 0, 0, 0, 0, 0, 0, 0, 8],
-                            [7, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 0, 0, 0, 2, 0, 4],
+                           [6, 0, 0, 0, 0, 0, 0, 0, 8],
+                           [7, 0, 0, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 1, 1, 5, 1]]
                 elif self.mapType == "B":
-                    map =  [[1, 1, 1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 0, 1, 0, 2, 0, 4],
-                            [6, 0, 0, 0, 1, 0, 0, 0, 8],
-                            [7, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 0, 1, 0, 2, 0, 4],
+                           [6, 0, 0, 0, 1, 0, 0, 0, 8],
+                           [7, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 1, 1, 5, 1]]
                 elif self.mapType == "C":
-                    map =  [[1, 1, 1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 0, 1, 0, 2, 0, 4],
-                            [6, 0, 0, 0, 1, 0, 0, 0, 8],
-                            [7, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 0, 1, 0, 2, 0, 4],
+                           [6, 0, 0, 0, 1, 0, 0, 0, 8],
+                           [7, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 1, 1, 5, 1]]
             elif self.n_agent == 3:
                 if self.mapType == "A":
-                    map =  [[1, 1, 1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 0, 0, 0, 2, 0, 4],
-                            [6, 0, 0, 0, 0, 0, 0, 0, 8],
-                            [7, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                            [1, 0, 2, 0, 0, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 0, 0, 0, 2, 0, 4],
+                           [6, 0, 0, 0, 0, 0, 0, 0, 8],
+                           [7, 0, 0, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                           [1, 0, 2, 0, 0, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 1, 1, 5, 1]]
                 elif self.mapType == "B":
-                    map =  [[1, 1, 1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 0, 1, 0, 2, 0, 4],
-                            [6, 0, 0, 0, 1, 0, 0, 0, 8],
-                            [7, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 2, 0, 1, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 0, 1, 0, 2, 0, 4],
+                           [6, 0, 0, 0, 1, 0, 0, 0, 8],
+                           [7, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 2, 0, 1, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 1, 1, 5, 1]]
                 elif self.mapType == "C":
-                    map =  [[1, 1, 1, 1, 1, 1, 1, 3, 1],
-                            [6, 0, 2, 0, 1, 0, 2, 0, 4],
-                            [6, 0, 0, 0, 1, 0, 0, 0, 8],
-                            [7, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                            [1, 0, 2, 0, 0, 0, 0, 0, 5],
-                            [1, 1, 1, 1, 1, 1, 1, 5, 1]]
+                    map = [[1, 1, 1, 1, 1, 1, 1, 3, 1],
+                           [6, 0, 2, 0, 1, 0, 2, 0, 4],
+                           [6, 0, 0, 0, 1, 0, 0, 0, 8],
+                           [7, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                           [1, 0, 2, 0, 0, 0, 0, 0, 5],
+                           [1, 1, 1, 1, 1, 1, 1, 5, 1]]
         self.initMap = map
         self.map = copy.deepcopy(self.initMap)
 
@@ -195,13 +197,17 @@ class Overcooked_V1(MultiAgentEnv):
         self._createItems()
         self.n_agent = len(self.agent)
 
+        # action: move(up, down, left, right), stay
+        self.action_space = spaces.Discrete(5)
 
+        # Observation: agent(pos[x,y]) dim = 2
+        #    knife(pos[x,y]) dim = 2
+        #    delivery (pos[x,y]) dim = 2
+        #    plate(pos[x,y]) dim = 2
+        #    food(pos[x,y]/status) dim = 3
 
-        obs_size = len(self._initObs()[self.agents[0]])
-        self.observation_space = spaces.Dict({agent: spaces.Box(low=0, high=1, shape=(obs_size,), dtype=np.float32) for agent in self.agents})
-        #action: move(up, down, left, right), stay
-        self.action_space =  spaces.Dict({agent: spaces.Discrete(5) for agent in self.agents})
-
+        self._initObs()
+        self.observation_space = spaces.Box(low=0, high=1, shape=(len(self._get_obs()[0]),), dtype=np.float32)
 
     def _createItems(self):
         self.agent = []
@@ -216,12 +222,12 @@ class Overcooked_V1(MultiAgentEnv):
         for x in range(self.xlen):
             for y in range(self.ylen):
                 if self.map[x][y] == ITEMIDX["agent"]:
-                    self.agent.append(Agent(x, y, color = AGENTCOLOR[agent_idx]))
+                    self.agent.append(Agent(x, y, color=AGENTCOLOR[agent_idx]))
                     agent_idx += 1
                 elif self.map[x][y] == ITEMIDX["knife"]:
                     self.knife.append(Knife(x, y))
                 elif self.map[x][y] == ITEMIDX["delivery"]:
-                    self.delivery.append(Delivery(x, y))                    
+                    self.delivery.append(Delivery(x, y))
                 elif self.map[x][y] == ITEMIDX["tomato"]:
                     self.tomato.append(Tomato(x, y))
                 elif self.map[x][y] == ITEMIDX["lettuce"]:
@@ -230,11 +236,11 @@ class Overcooked_V1(MultiAgentEnv):
                     self.onion.append(Onion(x, y))
                 elif self.map[x][y] == ITEMIDX["plate"]:
                     self.plate.append(Plate(x, y))
-        
-        self.itemDic = {"tomato": self.tomato, "lettuce": self.lettuce, "onion": self.onion, "plate": self.plate, "knife": self.knife, "delivery": self.delivery, "agent": self.agent}
+
+        self.itemDic = {"tomato": self.tomato, "lettuce": self.lettuce, "onion": self.onion, "plate": self.plate,
+                        "knife": self.knife, "delivery": self.delivery, "agent": self.agent}
         for key in self.itemDic:
             self.itemList += self.itemDic[key]
-
 
     def _initObs(self):
         obs = []
@@ -247,8 +253,7 @@ class Overcooked_V1(MultiAgentEnv):
 
         for agent in self.agent:
             agent.obs = obs
-
-        return {agent: np.array(obs) for agent in self.agents}
+        return [np.array(obs)] * self.n_agent
 
     def _get_vector_state(self):
         state = []
@@ -261,10 +266,10 @@ class Overcooked_V1(MultiAgentEnv):
                 state.append(item.cur_chopped_times / item.required_chopped_times)
 
         state += self.oneHotTask
-        return np.asarray(state, dtype=np.float32)
+        return [np.array(state)] * self.n_agent
 
     def _get_image_state(self):
-        return self.game.get_image_obs()
+        return [self.game.get_image_obs()] * self.n_agent
 
     def _get_obs(self):
         """
@@ -277,12 +282,12 @@ class Overcooked_V1(MultiAgentEnv):
         vec_obs = self._get_vector_obs()
         if self.obs_radius > 0:
             if self.mode == "vector":
-                return {agent: vec_obs for agent in self.agents}
+                return vec_obs
             elif self.mode == "image":
                 return self._get_image_obs()
         else:
             if self.mode == "vector":
-                return {agent: self._get_vector_state() for agent in self.agents}
+                return self._get_vector_state()
             elif self.mode == "image":
                 return self._get_image_state()
 
@@ -302,64 +307,64 @@ class Overcooked_V1(MultiAgentEnv):
             idx = 0
             if self.xlen == 7 and self.ylen == 7:
                 if self.mapType == "A":
-                    agent.pomap= [[1, 1, 1, 1, 1, 1, 1],
-                                  [1, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 1],
-                                  [1, 1, 1, 1, 1, 1, 1]]
+                    agent.pomap = [[1, 1, 1, 1, 1, 1, 1],
+                                   [1, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 1],
+                                   [1, 1, 1, 1, 1, 1, 1]]
                 elif self.mapType == "B":
-                    agent.pomap= [[1, 1, 1, 1, 1, 1, 1],
-                                  [1, 0, 0, 1, 0, 0, 1],
-                                  [1, 0, 0, 1, 0, 0, 1],
-                                  [1, 0, 0, 1, 0, 0, 1],
-                                  [1, 0, 0, 1, 0, 0, 1],
-                                  [1, 0, 0, 1, 0, 0, 1],
-                                  [1, 1, 1, 1, 1, 1, 1]]
+                    agent.pomap = [[1, 1, 1, 1, 1, 1, 1],
+                                   [1, 0, 0, 1, 0, 0, 1],
+                                   [1, 0, 0, 1, 0, 0, 1],
+                                   [1, 0, 0, 1, 0, 0, 1],
+                                   [1, 0, 0, 1, 0, 0, 1],
+                                   [1, 0, 0, 1, 0, 0, 1],
+                                   [1, 1, 1, 1, 1, 1, 1]]
                 elif self.mapType == "C":
-                    agent.pomap= [[1, 1, 1, 1, 1, 1, 1],
-                                  [1, 0, 0, 1, 0, 0, 1],
-                                  [1, 0, 0, 1, 0, 0, 1],
-                                  [1, 0, 0, 1, 0, 0, 1],
-                                  [1, 0, 0, 1, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 1],
-                                  [1, 1, 1, 1, 1, 1, 1]]
+                    agent.pomap = [[1, 1, 1, 1, 1, 1, 1],
+                                   [1, 0, 0, 1, 0, 0, 1],
+                                   [1, 0, 0, 1, 0, 0, 1],
+                                   [1, 0, 0, 1, 0, 0, 1],
+                                   [1, 0, 0, 1, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 1],
+                                   [1, 1, 1, 1, 1, 1, 1]]
             elif self.xlen == 9 and self.ylen == 9:
                 if self.mapType == "A":
-                    agent.pomap= [[1, 1, 1, 1, 1, 1, 1, 1, 1],
-                                  [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                                  [1, 1, 1, 1, 1, 1, 1, 1, 1]]
+                    agent.pomap = [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+                                   [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                                   [1, 1, 1, 1, 1, 1, 1, 1, 1]]
                 elif self.mapType == "B":
-                    agent.pomap= [[1, 1, 1, 1, 1, 1, 1, 1, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 1, 1, 1, 1, 1, 1, 1, 1]]
+                    agent.pomap = [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 1, 1, 1, 1, 1, 1, 1, 1]]
                 elif self.mapType == "C":
-                    agent.pomap= [[1, 1, 1, 1, 1, 1, 1, 1, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 1, 0, 0, 0, 1],
-                                  [1, 0, 0, 0, 0, 0, 0, 0, 1],
-                                  [1, 1, 1, 1, 1, 1, 1, 1, 1]]
+                    agent.pomap = [[1, 1, 1, 1, 1, 1, 1, 1, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [1, 0, 0, 0, 0, 0, 0, 0, 1],
+                                   [1, 1, 1, 1, 1, 1, 1, 1, 1]]
 
             for item in self.itemList:
                 if item.x >= agent.x - self.obs_radius and item.x <= agent.x + self.obs_radius and item.y >= agent.y - self.obs_radius and item.y <= agent.y + self.obs_radius \
-                    or self.obs_radius == 0:
+                        or self.obs_radius == 0:
                     x = item.x / self.xlen
                     y = item.y / self.ylen
                     obs.append(x)
@@ -386,9 +391,9 @@ class Overcooked_V1(MultiAgentEnv):
 
                 agent.pomap[int(x * self.xlen)][int(y * self.ylen)] = ITEMIDX[item.rawName]
             agent.pomap[agent.x][agent.y] = ITEMIDX["agent"]
-            obs += self.oneHotTask 
+            obs += self.oneHotTask
             agent.obs = obs
-            po_obs.append(np.array(obs, dtype=np.float32))
+            po_obs.append(np.array(obs))
         return po_obs
 
     def _get_image_obs(self):
@@ -404,14 +409,14 @@ class Overcooked_V1(MultiAgentEnv):
         frame = self.game.get_image_obs()
         old_image_width, old_image_height, channels = frame.shape
         new_image_width = int((old_image_width / self.xlen) * (self.xlen + 2 * (self.obs_radius - 1)))
-        new_image_height =  int((old_image_height / self.ylen) * (self.ylen + 2 * (self.obs_radius - 1)))
-        color = (0,0,0)
-        obs = np.full((new_image_height,new_image_width, channels), color, dtype=np.uint8)
+        new_image_height = int((old_image_height / self.ylen) * (self.ylen + 2 * (self.obs_radius - 1)))
+        color = (0, 0, 0)
+        obs = np.full((new_image_height, new_image_width, channels), color, dtype=np.uint8)
 
         x_center = (new_image_width - old_image_width) // 2
         y_center = (new_image_height - old_image_height) // 2
 
-        obs[x_center:x_center+old_image_width, y_center:y_center+old_image_height] = frame
+        obs[x_center:x_center + old_image_width, y_center:y_center + old_image_height] = frame
 
         for idx, agent in enumerate(self.agent):
             agent_obs = self._get_PO_obs(obs, agent.x, agent.y, old_image_width, old_image_height)
@@ -455,8 +460,8 @@ class Overcooked_V1(MultiAgentEnv):
 
     def action_space_sample(self, i):
         return np.random.randint(self.action_spaces[i].n)
-    
-    def reset(self, *, seed=None, options=None):
+
+    def reset(self):
 
         """
         Returns
@@ -471,8 +476,8 @@ class Overcooked_V1(MultiAgentEnv):
         # if self.debug:
         #     self.game.on_cleanup()
 
-        return self._get_obs(), {}
-    
+        return self._get_obs()
+
     def step(self, action):
 
         """
@@ -489,6 +494,7 @@ class Overcooked_V1(MultiAgentEnv):
         terminate : list
         info : dictionary
         """
+
         reward = self.rewardList["step penalty"]
         done = False
         info = {}
@@ -529,11 +535,11 @@ class Overcooked_V1(MultiAgentEnv):
                                     agent.move(target_x, target_y)
                                     agent.moved = True
                                     target_agent.moved = True
-                    elif  target_name == "space":
+                    elif target_name == "space":
                         self.map[agent.x][agent.y] = ITEMIDX["space"]
                         agent.move(target_x, target_y)
                         self.map[target_x][target_y] = ITEMIDX["agent"]
-                    #pickup and chop
+                    # pickup and chop
                     elif not agent.holding:
                         if target_name == "tomato" or target_name == "lettuce" or target_name == "plate" or target_name == "onion":
                             item = self._findItem(target_x, target_y, target_name)
@@ -555,7 +561,7 @@ class Overcooked_V1(MultiAgentEnv):
                                     if knife.holding.chopped:
                                         if knife.holding.rawName in self.task:
                                             reward += self.rewardList["subtask finished"]
-                    #put down
+                    # put down
                     elif agent.holding:
                         if target_name == "counter":
                             if agent.holding.rawName in ["tomato", "lettuce", "onion", "plate"]:
@@ -568,7 +574,7 @@ class Overcooked_V1(MultiAgentEnv):
                                     item = agent.holding
                                     agent.putdown(target_x, target_y)
                                     plate.contain(item)
-                                    
+
                         elif target_name == "knife":
                             knife = self._findItem(target_x, target_y, target_name)
                             if not knife.holding:
@@ -593,7 +599,7 @@ class Overcooked_V1(MultiAgentEnv):
                                     dishName = ""
                                     foodList = [Lettuce, Onion, Tomato]
                                     foodInPlate = [-1] * len(foodList)
-                                    
+
                                     for f in range(len(agent.holding.containing)):
                                         for i in range(len(foodList)):
                                             if isinstance(agent.holding.containing[f], foodList[i]):
@@ -643,15 +649,11 @@ class Overcooked_V1(MultiAgentEnv):
                 if agent.moved == False:
                     all_action_done = False
 
-        truncateds = {agent: done for agent in self.agents}
-        terminateds = {agent: done for agent in self.agents}
-        truncateds["__all__"] = done
-        return self._get_obs(), {agent: reward for agent in self.agents}, terminateds, truncateds, info
+        return self._get_obs(), [reward] * self.n_agent, done, info
 
     def render(self, mode='human'):
         return self.game.on_render()
 
-    
 
 
 

@@ -1,6 +1,6 @@
 import argparse
 import os
-import gym
+import gymnasium as gym
 import matplotlib.pyplot as plt
 import time
 import torch
@@ -8,31 +8,31 @@ import random
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import configure
-from gym_macro_overcooked.overcooked_V1 import Overcooked_V1
 
-# Set random seed for reproducibility
+from gym_macro_overcooked.overcooked_multi import Overcooked_multi
+
 random.seed(42)
 torch.manual_seed(42)
 
 class SingleAgentWrapper(gym.Wrapper):
-    """Wrapper to handle a multi-agent environment as a single-agent one."""
     def __init__(self, env):
         super(SingleAgentWrapper, self).__init__(env)
-        self.observation_space = env.observation_space
-        self.action_space = env.action_space
+        self.observation_space = env.observation_spaces['ai']
+        self.action_space = env.action_spaces['ai']
 
-    def reset(self):
-        obs = self.env.reset()
-        return obs[0] if isinstance(obs, list) else obs
+    def reset(self, *, seed=None, options=None):
+        obs, _ = self.env.reset()
+        return obs['ai'], {}
 
     def step(self, action):
-        actions = [action, 4]  # Adjust if needed
-        obs, rewards, dones, info = self.env.step(actions)
-        return obs[0], rewards[0], dones, info
+        actions = {"human": action, "ai": 4}  # Adjust if needed
+        obs, rewards, dones, truncated, info = self.env.step(actions)
+        return obs['ai'], rewards['ai'], dones['__all__'], truncated['__all__'], info['ai']
 
 
 class CumulativeRewardCallback(BaseCallback):
     """Tracks cumulative rewards and saves the model periodically."""
+
     def __init__(self, save_freq, save_path, verbose=0):
         super().__init__(verbose)
         self.save_freq = save_freq
@@ -64,7 +64,6 @@ class CumulativeRewardCallback(BaseCallback):
     def get_cumulative_rewards(self):
         return self.cumulative_rewards
 
-
 def create_env():
     """Creates and wraps the environment."""
     reward_config = {
@@ -73,29 +72,26 @@ def create_env():
         "subtask finished": 10,
         "correct delivery": 200,
         "wrong delivery": -50,
-        "step penalty": -0.1,
+        "step penalty": -1.,
     }
 
-    env_id = "Overcooked-shuai-v0"
     env_params = {
         "grid_dim": [5, 5],
         "task": "tomato salad",
         "rewardList": reward_config,
         "map_type": "A",
-        "n_agent": 2,
-        "obs_radius": 0,
+        "obs_radius": 0, # full observability.
         "mode": "vector",
-        "debug": True,
+        "debug": False,
     }
-
-    env = gym.make(env_id, **env_params)
+    env = Overcooked_multi(**env_params)
     return SingleAgentWrapper(env)
 
 
 def train_model(env, exp_name):
     """Trains the PPO model on the environment."""
     exp_dir = f"./experiments/{exp_name}"
-    log_dir = f"{exp_dir}/logs"
+    log_dir = f"./runs/sb3_run/"
     save_path = f"{exp_dir}/model"
 
     # Ensure directories exist
@@ -119,12 +115,12 @@ def train_model(env, exp_name):
         "device": "cuda" if torch.cuda.is_available() else "cpu",
     }
 
-    model = PPO("MlpPolicy", env, **ppo_params)
+    model = PPO("MlpPolicy", env, **ppo_params, tensorboard_log = log_dir)
     model.set_logger(new_logger)
 
-    reward_callback = CumulativeRewardCallback(save_freq=50000, save_path=save_path) 
+    reward_callback = CumulativeRewardCallback(save_freq=50_000, save_path=save_path, verbose=1)  # TODO: save_freq=50000
 
-    model.learn(total_timesteps=5_000_000, callback=reward_callback) 
+    model.learn(total_timesteps=5_000_000, callback=reward_callback)  # TODO: total_timesteps=5_000_000
     model.save(f"{save_path}/final_model.zip")
 
     return model, reward_callback
@@ -171,10 +167,10 @@ def test_model(env, model_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train or test PPO model on Overcooked environment.")
     parser.add_argument("--exp_name", type=str, default="reproduce",
-        help="Experiment name (used for saving logs and models)")
+                        help="Experiment name (used for saving logs and models)")
     parser.add_argument("--train", action="store_true", help="Enable training mode", default=True)
     parser.add_argument("--test", action="store_true", help="Enable testing mode", default=True)
-    
+
     args = parser.parse_args()
 
     env = create_env()
@@ -185,7 +181,7 @@ if __name__ == "__main__":
 
     if args.test:
         model_path = f"./experiments/{args.exp_name}/model/final_model.zip"
-        
+
         if os.path.exists(model_path):
             print(f"Starting testing using model: {model_path}")
             test_model(env, model_path)
