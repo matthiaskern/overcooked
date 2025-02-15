@@ -90,7 +90,7 @@ class Player:
 
 
             else:
-                input_ai = self.agent.agent._forward_inference({"obs": [obs['ai']]})['actions']
+                input_ai = self.agent._forward_inference({"obs": [obs['ai']]})['actions']
 
             action = {
                 "human": self.ACTION_MAPPING[input_human[0]],
@@ -125,6 +125,7 @@ class Player:
         # Save to CSV
         csv_filename = "output.csv"
         df.to_csv(csv_filename, index=False)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_id', type=str, default='Overcooked-v1', help='Domain name')

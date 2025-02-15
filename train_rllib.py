@@ -3,7 +3,7 @@ from gym_macro_overcooked.Overcooked import Overcooked_multi
 from ray.tune.registry import register_env
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
-from ray import train, tune
+from ray import tune
 from ray.rllib.algorithms.ppo import PPOConfig
 from Agents import AlwaysStationaryRLM
 
