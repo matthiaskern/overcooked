@@ -30,8 +30,7 @@ class Overcooked_multi(MultiAgentEnv):
         self.agents = self.possible_agents = ["human", "ai"]
 
         self.xlen, self.ylen = grid_dim
-        if debug:
-            self.game = Game(self)
+
         self.task = task
         self.rewardList = rewardList
         self.mapType = map_type
