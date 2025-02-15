@@ -9,7 +9,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import configure
 
-from gym_macro_overcooked.overcooked_multi import Overcooked_multi
+from gym_macro_overcooked.Overcooked import Overcooked_multi
 
 random.seed(42)
 torch.manual_seed(42)

@@ -1,5 +1,5 @@
 import ray
-from gym_macro_overcooked.overcooked_multi import Overcooked_multi
+from gym_macro_overcooked.Overcooked import Overcooked_multi
 from ray.tune.registry import register_env
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec

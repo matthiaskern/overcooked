@@ -1,5 +1,5 @@
 import argparse
-from gym_macro_overcooked.overcooked_multi import Overcooked_multi
+from gym_macro_overcooked.Overcooked import Overcooked_multi
 
 TASKLIST = ["tomato salad", "lettuce salad", "onion salad", "lettuce-tomato salad", "onion-tomato salad", "lettuce-onion salad", "lettuce-onion-tomato salad"]
 
