@@ -405,6 +405,7 @@ class Overcooked_multi(MultiAgentEnv):
         self._initObs()
         self.observation_spaces = {agent: spaces.Box(low=0, high=1, shape=(len(self._get_obs()[agent]),), dtype=np.float64) for agent in self.agents}
 
+        self.game = Game(self)
 
     def _createItems(self):
         # 存储着这些item（包含位置和其他属性）的list

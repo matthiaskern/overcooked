@@ -1,4 +1,4 @@
-from gym import Wrapper
+from gymnasium import Wrapper
 class MacEnvWrapper(Wrapper):
     def __init__(self, env):
         super(MacEnvWrapper, self).__init__(env)
