@@ -1,14 +1,16 @@
+import time
 import ray
+from ray.train import RunConfig, CheckpointConfig
 from gym_macro_overcooked.Overcooked import Overcooked_multi
 from ray.tune.registry import register_env
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray import tune
 from ray.rllib.algorithms.ppo import PPOConfig
-from Agents import AlwaysStationaryRLM
+from Agents import AlwaysStationaryRLM, RandomRLM
+import os
 
-
-if __name__ == "__main__":
+def main(args):
     reward_config = {
         "metatask failed": 0,
         "goodtask finished": 5,
@@ -32,9 +34,20 @@ if __name__ == "__main__":
         lambda _: Overcooked_multi(**env_params),
     )
 
+    if args.rl_module == 'stationary':
+        rlm = RLModuleSpec(module_class=AlwaysStationaryRLM)
+        policies_to_train = ['ai']
+    elif args.rl_module == 'random':
+        rlm = RLModuleSpec(module_class=RandomRLM)
+        policies_to_train = ['ai']
+    elif args.rl_module == 'learned':
+        rlm = RLModuleSpec()
+        policies_to_train = ['ai', 'human']
+    else:
+        raise NotImplementedError(f"{args.rl_module} not a valid human agent")
+
     config = (
         PPOConfig()
-
         .api_stack(
             enable_rl_module_and_learner=True,
             enable_env_runner_and_connector_v2=True,
@@ -48,13 +61,13 @@ if __name__ == "__main__":
         .multi_agent(
             policies={"ai", "human"},
             policy_mapping_fn=lambda aid, *a, **kw: aid,
-            policies_to_train=['ai']
+            policies_to_train=policies_to_train
 
         )
         .rl_module(
             rl_module_spec=MultiRLModuleSpec(
                 rl_module_specs={
-                    "human": RLModuleSpec(module_class=AlwaysStationaryRLM),
+                    "human": rlm,
                     "ai": RLModuleSpec(),
                 }
             ),
@@ -73,10 +86,29 @@ if __name__ == "__main__":
     )
 
     ray.init()
-
+    current_dir = os.getcwd()
+    storage_path = os.path.join(current_dir, args.save_dir)
+    experiment_name = f"{args.name}_{args.rl_module}_{int(time.time()*1000)}"
     tuner = tune.Tuner(
         "PPO",
         param_space=config,
+        run_config=RunConfig(
+            storage_path=storage_path,
+            name=experiment_name,
+            stop = {"training_iteration": 200},
+            checkpoint_config = CheckpointConfig(checkpoint_frequency=10, checkpoint_at_end=True, num_to_keep=2),
+        )
     )
 
     tuner.fit()
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--save_dir", default="runs", type=str)
+    parser.add_argument("--name", default="run", type=str)
+    parser.add_argument("--rl_module", default="stationary", help = "Set the policy of the human, can be stationary, random, or learned")
+
+    args = parser.parse_args()
+    ip = main(args)

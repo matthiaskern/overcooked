@@ -1,111 +1,99 @@
+import glob
 import time
-import ray
-from ray.train import RunConfig, CheckpointConfig
 from gym_macro_overcooked.Overcooked import Overcooked_multi
-from ray.tune.registry import register_env
-from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
-from ray.rllib.core.rl_module.rl_module import RLModuleSpec
 from ray import tune
-from ray.rllib.algorithms.ppo import PPOConfig
-from Agents import AlwaysStationaryRLM, RandomRLM
+from ray.rllib.core.rl_module.rl_module import RLModule
+from ray.rllib.core import (
+    COMPONENT_LEARNER_GROUP,
+    COMPONENT_LEARNER,
+    COMPONENT_RL_MODULE,
+)
+from ray.rllib.utils.metrics import (
+    ENV_RUNNER_RESULTS,
+    EPISODE_RETURN_MEAN,
+)
+from ray.rllib.core.columns import Columns
+import torch
 import os
+from ray.rllib.utils.numpy import convert_to_numpy, softmax
+import numpy as np
+
+reward_config = {
+    "metatask failed": 0,
+    "goodtask finished": 5,
+    "subtask finished": 10,
+    "correct delivery": 200,
+    "wrong delivery": -50,
+    "step penalty": -1.,
+}
+env_params = {
+    "grid_dim": [5, 5],
+    "task": "tomato salad",
+    "rewardList": reward_config,
+    "map_type": "A",
+    "obs_radius": 0,  # full observability.
+    "mode": "vector",
+    "debug": False,
+}
+
+env = Overcooked_multi(**env_params)
+
+
+def sample_action(mdl, obs):
+    mdl_out = mdl.forward_inference({Columns.OBS: obs})
+    if Columns.ACTION_DIST_INPUTS in mdl_out: #our custom policies might return the actions directly, while learned policies might return logits.
+        logits = convert_to_numpy(mdl_out[Columns.ACTION_DIST_INPUTS])
+        action = np.random.choice(list(range(len(logits[0]))), p=softmax(logits[0]))
+        return action
+    elif 'actions' in mdl_out:
+        return mdl_out['actions'][0]
+
+    else:
+        raise NotImplementedError("Something weird is going on when sampling acitons")
 
 def main(args):
-    reward_config = {
-        "metatask failed": 0,
-        "goodtask finished": 5,
-        "subtask finished": 10,
-        "correct delivery": 200,
-        "wrong delivery": -50,
-        "step penalty": -1.,
-    }
-    env_params = {
-        "grid_dim": [5, 5],
-        "task": "tomato salad",
-        "rewardList": reward_config,
-        "map_type": "A",
-        "obs_radius": 0, # full observability.
-        "mode": "vector",
-        "debug": False,
-    }
-
-    register_env(
-        "Overcooked",
-        lambda _: Overcooked_multi(**env_params),
-    )
-
-    if args.rl_module == 'stationary':
-        rlm = RLModuleSpec(module_class=AlwaysStationaryRLM)
-        policies_to_train = ['ai']
-    elif args.rl_module == 'random':
-        rlm = RLModuleSpec(module_class=RandomRLM)
-        policies_to_train = ['ai']
-    elif args.rl_module == 'learned':
-        rlm = RLModuleSpec()
-        policies_to_train = ['ai', 'human']
-    else:
-        raise NotImplementedError(f"{args.rl_module} not a valid human agent")
-
-    config = (
-        PPOConfig()
-        .api_stack(
-            enable_rl_module_and_learner=True,
-            enable_env_runner_and_connector_v2=True,
-        )
-        .environment("Overcooked")
-        .env_runners(
-            num_envs_per_env_runner=1,
-            num_cpus_per_env_runner = 1,
-            num_gpus_per_env_runner= 0
-        )
-        .multi_agent(
-            policies={"ai", "human"},
-            policy_mapping_fn=lambda aid, *a, **kw: aid,
-            policies_to_train=policies_to_train
-
-        )
-        .rl_module(
-            rl_module_spec=MultiRLModuleSpec(
-                rl_module_specs={
-                    "human": rlm,
-                    "ai": RLModuleSpec(),
-                }
-            ),
-        )
-        .training(
-            lr=1e-3,
-            lambda_=0.98,
-            gamma=0.99,
-            clip_param=0.05,
-            entropy_coeff=0.1,
-            vf_loss_coeff=0.1,
-            grad_clip=0.1,
-            num_epochs=10,
-            minibatch_size=64,
-        )
-    )
-
-    ray.init()
-
     current_dir = os.getcwd()
     storage_path = os.path.join(current_dir, args.save_dir)
-    experiment_name = f"{args.name}_{args.rl_module}_{int(time.time()*1000)}"
-    tuner = tune.Tuner(
-        "PPO",
-        param_space=config,
-        run_config=RunConfig(
-            storage_path=storage_path,
-            name=experiment_name,
-            stop = {"training_iteration": 200},
-            checkpoint_config = CheckpointConfig(checkpoint_frequency=10, checkpoint_at_end=True, num_to_keep=2),
-        )
-    )
+    p = f"{storage_path}/{args.name}_{args.rl_module}_*"
+    experiment_name = glob.glob(p)[-1]
+    print(f"Loading results from {experiment_name}...")
+    restored_tuner = tune.Tuner.restore(experiment_name, trainable="PPO")
+    result_grid = restored_tuner.get_results()
+    best_result = result_grid.get_best_result(metric=f"{ENV_RUNNER_RESULTS}/{EPISODE_RETURN_MEAN}", mode="max")
+    print(best_result.config)
+    best_checkpoint = best_result.checkpoint
 
-    tuner.fit()
+    human_module = RLModule.from_checkpoint(os.path.join(
+        best_checkpoint.path,
+        COMPONENT_LEARNER_GROUP,
+        COMPONENT_LEARNER,
+        COMPONENT_RL_MODULE,
+        'human',
+    ))
 
-    experiment_path = os.path.join(storage_path, experiment_name)
-    print(f"Loading results from {experiment_path}...")
+    ai_module = RLModule.from_checkpoint(os.path.join(
+        best_checkpoint.path,
+        COMPONENT_LEARNER_GROUP,
+        COMPONENT_LEARNER,
+        COMPONENT_RL_MODULE,
+        'ai',
+    ))
+    env.game.on_init()
+    obs, info = env.reset()
+    env.render()
 
+    while True:
+        ai_action = sample_action(ai_module, torch.from_numpy(obs['ai']).unsqueeze(0).float())
+        human_action = sample_action(human_module, torch.from_numpy(obs['human']).unsqueeze(0).float())
+        actions = {'human': human_action,
+                   'ai': ai_action}
+
+        obs, rewards, terminateds, _, _ = env.step(actions)
+        env.render()
+        time.sleep(0.1)
+
+        if terminateds['__all__']:
+            break
 
 if __name__ == "__main__":
     import argparse
@@ -113,7 +101,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--save_dir", default="runs", type=str)
     parser.add_argument("--name", default="run", type=str)
-    parser.add_argument("--rl_module", default="random", type=str)
+    parser.add_argument("--rl_module", default="stationary", type=str)
 
     args = parser.parse_args()
     ip = main(args)
