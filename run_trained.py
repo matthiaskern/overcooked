@@ -104,4 +104,4 @@ if __name__ == "__main__":
     parser.add_argument("--rl_module", default="stationary", type=str)
 
     args = parser.parse_args()
-    ip = main(args)
+    main(args)
