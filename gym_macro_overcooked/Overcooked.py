@@ -685,20 +685,14 @@ class Overcooked_multi(MultiAgentEnv):
         info : dictionary
         """
 
-        # print('step了么')
-
         action = [action['human'], action['ai']] # some ugly hack to make the environment work with rllib.
 
-        # 每调用一次step方法，计数加一
         self.step_count += 1
 
-
-        # 执行任意一个action，都要花费一个step，都要先penalty一下
+        # Executing any action incurs a step penalty.
+        # If the step count reaches 24, mark done as True and reset the counter.
         self.reward = self.rewardList["step penalty"]
         done = False
-
-
-        # 如果步骤计数达到24，标记done为True并重置计数器
 
         info = {}
         info['cur_mac'] = action
@@ -741,97 +735,89 @@ class Overcooked_multi(MultiAgentEnv):
                                     agent.moved = True
                                     target_agent.moved = True
 
-                    # 如果是space，那就直接移动
+                    # If the target is space, move the agent to the target position
                     elif  target_name == "space":
                         self.map[agent.x][agent.y] = ITEMIDX["space"]
                         agent.move(target_x, target_y)
                         self.map[target_x][target_y] = ITEMIDX["agent"]
 
-                    #pickup and chop
-                    # 如果agent没有持有任何东西
+                    # pickup and chop 
+                    # If the agent doesn't have anything in hand
                     elif not agent.holding:
-                        # 如果是这四类可以移动的item
-                        if target_name == "tomato" or target_name == "lettuce" or target_name == "plate" or target_name == "onion":
+                        # If the target is a movable item, pick it up
+                        if target_name in ["tomato", "lettuce", "plate", "onion"]:
                             item = self._findItem(target_x, target_y, target_name)
                             agent.pickup(item)
-                            # 因为取走了这些可移动的item了，所以把地图中对应的位置变成counter
                             self.map[target_x][target_y] = ITEMIDX["counter"]
-                            
-                            # reward += self.rewardList["metatask finished"]
-                        
 
                         elif target_name == "knife":
                             knife = self._findItem(target_x, target_y, target_name)
-                            # 如果切菜板上面有盘子，则agent会取走盘子
+                            # If the knife is holding a plate, pick it up
                             if isinstance(knife.holding, Plate):
                                 item = knife.holding
                                 knife.release()
                                 agent.pickup(item)
-                                # reward += self.rewardList["metatask finished"]
-                            # 如果切菜板上面是食物，则判断是否已经切好
+                            # If the knife is holding food
                             elif isinstance(knife.holding, Food):
-                                # 如果已经切好了，则取走
+                                # If the food is chopped, pick it up
                                 if knife.holding.chopped:
                                     item = knife.holding
                                     knife.release()
                                     agent.pickup(item)
-                                    # reward += self.rewardList["goodtask finished"]
-                                # 如果还没有切好，则切一次，判断是否切好，如果切好，判断所切的item是否属于当前task中的，是的话则赋予10的奖励
-                                # ["tomato salad", "lettuce salad", "onion salad", "lettuce-tomato salad", "onion-tomato salad", "lettuce-onion salad", "lettuce-onion-tomato salad"]
+                                # If the food is not chopped, chop it once
                                 else:
                                     knife.holding.chop()
                                     self.reward += self.rewardList["goodtask finished"]
+                                    # If the food is chopped after chopping, check if it is part of the current task
                                     if knife.holding.chopped:
-                                        # if knife.holding.rawName in self.task:
                                         for task in self.task:
                                             if knife.holding.rawName in task:
-                                                # 不鼓励切菜和取走，只鼓励装盘
+                                                # Reward for completing a mini task
                                                 self.reward += self.rewardList["minitask finished"]
-                    #put down
-                    # 如果agent当前已经持有东西
+                    # put down
+                    # If the agent is currently holding something
                     elif agent.holding:
-                        # 如果移动的目标是counter，则会放下手中的东西
+                        # If the target is a counter, the agent will put down the item
                         if target_name == "counter":
                             if agent.holding.rawName in ["tomato", "lettuce", "onion", "plate"]:
-                                # 把该counter变成agent手中持有的可移动item，这个rawName应该是一些数字
+                                # Change the counter to hold the item the agent was holding
                                 self.map[target_x][target_y] = ITEMIDX[agent.holding.rawName]
-                            # 恢复非持物状态
+                            # Reset the agent to not holding anything
                             agent.putdown(target_x, target_y)
-
                             self.reward += self.rewardList["metatask failed"]
-                        # 如果移动目标是盘子
+                        # If the target is a plate
                         elif target_name == "plate":
-                            # 如果手中拿的是食物，判断是否切好，未切好不能装盘
+                            # If the agent is holding food, check if it is chopped
                             if isinstance(agent.holding, Food):
                                 if agent.holding.chopped:
-                                    # 给装盘一个较大的奖励
+                                    # Reward for placing chopped food on a plate
                                     self.reward += self.rewardList["subtask finished"]
                                     plate = self._findItem(target_x, target_y, target_name)
                                     item = agent.holding
-                                    # 放下手中的物品，恢复未持物状态
+                                    # Put down the item and reset the agent
                                     agent.putdown(target_x, target_y)
-                                    # 把食物装进盘子里
+                                    # Place the food on the plate
                                     plate.contain(item)
                             else:
                                 self.reward += self.rewardList["metatask failed"]
-                        # 如果移动目标是切菜板
+                        # If the target is a knife
                         elif target_name == "knife":
                             knife = self._findItem(target_x, target_y, target_name)
-                            # 如果切菜板是空的，则把agent手中的东西放置下来
+                            # If the knife is empty, place the item on the knife
                             if not knife.holding:
                                 item = agent.holding
                                 agent.putdown(target_x, target_y)
                                 knife.hold(item)
                                 if isinstance(item, Food):
                                     if item.chopped:
-                                        # 把切好的菜放回去要减分
+                                        # Penalty for placing chopped food back on the knife
                                         self.reward += self.rewardList["metatask failed"]
                                     else:
-                                        # 只有把没切好的食物放在切菜板上才加分
+                                        # Reward for placing unchopped food on the knife
                                         self.reward += self.rewardList["goodtask finished"]
                                 else:
                                     self.reward += self.rewardList["metatask failed"]
-                            # 如果切菜板上是食物，agent手中拿的是盘子，则判断食物是否切好了，如果切好了则把食物装进盘子中
+                            # If the knife is holding food and the agent is holding a plate, place the food on the plate
                             elif isinstance(knife.holding, Food) and isinstance(agent.holding, Plate):
                                 item = knife.holding
                                 if item.chopped:
@@ -839,131 +825,85 @@ class Overcooked_multi(MultiAgentEnv):
                                     knife.release()
                                     agent.holding.contain(item)
                                 else:
-                                    # 没切好就拿盘子装，减分
+                                    # Penalty for placing unchopped food on a plate
                                     self.reward += self.rewardList["metatask failed"]
                             elif isinstance(knife.holding, Food) and not isinstance(agent.holding, Plate):
-                                # 切菜板上是食物，但是agent拿的不是盘子，是食物，减分
+                                # Penalty for holding food while the knife is holding food
                                 self.reward += self.rewardList["metatask failed"]
-                            # 如果切菜板上的是盘子，agent手中拿的是食物，则判断食物是否切好了，如果切好了，把食物放在盘子中，要注意此时agent需要先拿起盘子，再让盘子装起食物
+                            # If the knife is holding a plate and the agent is holding food, place the food on the plate
                             elif isinstance(knife.holding, Plate) and isinstance(agent.holding, Food):
                                 plate_item = knife.holding
                                 food_item = agent.holding
                                 if food_item.chopped:
                                     self.reward += self.rewardList["subtask finished"]
                                     knife.release()
-                                    # a little different
                                     agent.pickup(plate_item)
                                     agent.holding.contain(food_item)
                                 else:
-                                    # 切菜板上是盘子，agent拿着没切好的食物，减分
+                                    # Penalty for placing unchopped food on a plate
                                     self.reward += self.rewardList["metatask failed"]
                             elif isinstance(knife.holding, Plate) and isinstance(agent.holding, Plate):
-                                # 切菜板上是盘子，agent拿着盘子
+                                # Penalty for holding a plate while the knife is holding a plate
                                 self.reward += self.rewardList["metatask failed"]
-                        # 如果移动目标是配送站
+                        # If the target is a delivery point
                         elif target_name == "delivery":
-                            # 如果agent手中拿的是盘子，起码大方向对了，需要继续判断
+                            # If the agent is holding a plate, check if it contains food
                             if isinstance(agent.holding, Plate):
-                                # 如果盘子里装着food了
                                 if agent.holding.containing:
                                     dishName = ""
-                                    # 所有菜品名称，哪怕是组合菜，也都是按照lettuce，onion，tomato的顺序命名的，实际的组合顺序任意，但是菜名的顺序是这样的
                                     foodList = [Lettuce, Onion, Tomato]
-
-                                    # 先把foodInPlate变成[-1, -1, -1]
                                     foodInPlate = [-1] * len(foodList)
-                                    # 遍历盘子中的东西，比如lettuce，tomato
                                     for f in range(len(agent.holding.containing)):
                                         for i in range(len(foodList)):
-                                            # 如果是食物列表中的
                                             if isinstance(agent.holding.containing[f], foodList[i]):
-                                                # 把foodInPlate对应的位置从-1变成盘子中物品的index，说明盘子中的这个物品是任务列表中所需要的item的其中之一
                                                 foodInPlate[i] = f
-                                    # 再次遍历
                                     for i in range(len(foodList)):
-                                        # 如果盘子中的物品属于所需要的物品之一，则拼接到菜品名称中，用-分开
                                         if foodInPlate[i] > -1:
                                             dishName += agent.holding.containing[foodInPlate[i]].rawName + "-"
-                                    # 最后加上salad后缀
                                     dishName = dishName[:-1] + " salad"
-                                    # if dishName == self.task:
                                     if dishName in self.task:
                                         item = agent.holding
-                                        # agent放下手中的东西
                                         agent.putdown(target_x, target_y)
-
-                                        # 让上菜处hold一下agent手中的菜，其实就是上菜成功的意思
-                                        # 如果注释掉，就是去掉上菜的视觉效果
-                                        # self.delivery[0].hold(item)
-
-
-
-
-
-                                        """下面的代码也是让蔬菜进行刷新"""
                                         food = item.containing
-                                        # 盘子release，刷新
                                         item.release()
                                         item.refresh()
                                         self.map[item.x][item.y] = ITEMIDX[item.name]
-                                        # 所有盘子中的food刷新，我发现有个核心代码模式就是，self.map[x][y] = ITEMIDX[name]，应该是改变或重置地图中某个位置的意思
                                         for f in food:
                                             f.refresh()
                                             self.map[f.x][f.y] = ITEMIDX[f.rawName]
-
-                                        # print(dishName)
-                                        # print(self.taskCompletionStatus)
-                                        """如果是多recipe的，不能只是完成一个recipe就done了"""
                                         index = TASKLIST.index(dishName)
-                                        if self.taskCompletionStatus[index] > 0:  # 确保不会减成负值
+                                        if self.taskCompletionStatus[index] > 0:
                                             self.taskCompletionStatus[index] -= 1
                                             self.reward += self.rewardList["correct delivery"]
-                                            # print(self.taskCompletionStatus[index])
-                                            # print('Done one task')
                                         else:
                                             self.reward += self.rewardList["wrong delivery"]
-                                            # print('overdone')
-
                                         if all(value == 0 for value in self.taskCompletionStatus):
                                             self.reward += self.rewardList["correct delivery"]
-                                            # self.reward += self.rewardList["correct delivery"]
-                                            # self.reward += self.rewardList["correct delivery"]
-                                            # print('Completed!')
                                             done = True
-                                        # print(self.taskCompletionStatus)
                                     else:
                                         self.reward += self.rewardList["wrong delivery"]
                                         item = agent.holding
                                         agent.putdown(target_x, target_y)
                                         food = item.containing
-                                        # 盘子release，刷新
                                         item.release()
                                         item.refresh()
                                         self.map[item.x][item.y] = ITEMIDX[item.name]
-                                        # 所有盘子中的food刷新，我发现有个核心代码模式就是，self.map[x][y] = ITEMIDX[name]，应该是改变或重置地图中某个位置的意思
                                         for f in food:
                                             f.refresh()
                                             self.map[f.x][f.y] = ITEMIDX[f.rawName]
-                                # 如果盘子里是空的，那是一种wrong delivery
                                 else:
                                     self.reward += self.rewardList["wrong delivery"]
                                     plate = agent.holding
-                                    # agent放下手中的东西，手头变空
                                     agent.putdown(target_x, target_y)
-                                    # 下面两行是刷新盘子
                                     plate.refresh()
                                     self.map[plate.x][plate.y] = ITEMIDX[plate.name]
-                            # 如果把food直接deliver了，则是一种wrong delivery，此时会扣分，同时刷新（1）agent手中东西放下变空，（2）food刷新位置，
                             else:
                                 self.reward += self.rewardList["wrong delivery"]
                                 food = agent.holding
-                                # agent放下手中的东西，手头变空
                                 agent.putdown(target_x, target_y)
-                                # 下面两行是刷新food
                                 food.refresh()
                                 self.map[food.x][food.y] = ITEMIDX[food.rawName]
-
-                        # 如果移动目标是食物，则只有（1）agent手中拿着盘子，（2）食物已经切好了，才能执行put down的操作。pickup当然没问题，但是put down只有满足这个条件才能进行
+                        # If the target is food, the agent can only put down the item if it is holding a plate and the food is chopped
                         elif target_name in ["tomato", "lettuce", "onion"]:
                             item = self._findItem(target_x, target_y, target_name)
                             if item.chopped and isinstance(agent.holding, Plate):
@@ -971,18 +911,16 @@ class Overcooked_multi(MultiAgentEnv):
                                 agent.holding.contain(item)
                                 self.map[target_x][target_y] = ITEMIDX["counter"]
                             elif not item.chopped and isinstance(agent.holding, Plate):
-                                # 如果食物没切好就想去装盘，减分
                                 self.reward += self.rewardList["metatask failed"]
                             elif isinstance(agent.holding, Food):
-                                # 面向食物，agent手里拿的也是食物，减分
                                 self.reward += self.rewardList["metatask failed"]
 
-            # for idx, agent in enumerate(self.agent)循环结束，所有agent的action都执行完了
+            # End of the for loop for all agents' actions
             all_action_done = True
 
-            # 只要还有agent没move，all_action_done就不能为True
+            # Check if any agent has not moved
             for agent in self.agent:
-                if agent.moved == False:
+                if not agent.moved:
                     all_action_done = False
 
         terminateds = {"__all__": done or self.step_count >= 80}
@@ -993,7 +931,6 @@ class Overcooked_multi(MultiAgentEnv):
 
         return self._get_obs(), rewards, terminateds, {'__all__': truncated}, infos
 
-    # render到界面中
     def render(self, mode='human'):
         return self.game.on_render()
 
