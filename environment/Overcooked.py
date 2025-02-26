@@ -290,7 +290,6 @@ class Overcooked_multi(MultiAgentEnv):
                         [1, 1, 1, 1, 1, 1, 1, 5, 1]]
         return map
 
-
     def _createItems(self):
         """
         Initialize the items in the environment based on the map configuration.
@@ -333,7 +332,6 @@ class Overcooked_multi(MultiAgentEnv):
         self.itemList = [item for sublist in self.itemDic.values() for item in sublist]
         self.agent = self.itemDic["agent"]
 
-
     def _initObs(self):
         """
         Initialize the observations for the agents.
@@ -356,7 +354,6 @@ class Overcooked_multi(MultiAgentEnv):
         for agent in self.agent:
             agent.obs = obs
         return [np.array(obs)] * self.n_agent
-
 
     def _get_vector_state(self):
         """
@@ -387,7 +384,6 @@ class Overcooked_multi(MultiAgentEnv):
 
         state.extend(self.oneHotTask)
         return [np.array(state)] * self.n_agent
-
 
     def _get_image_state(self):
         """
