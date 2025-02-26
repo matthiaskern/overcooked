@@ -50,26 +50,6 @@ def sample_action(mdl, obs):
     else:
         raise NotImplementedError("Something weird is going on when sampling acitons")
 
-def main(args):
-    ai_module, human_module = load_modules(args)
-    env.game.on_init()
-    obs, info = env.reset()
-    env.render()
-
-    while True:
-        ai_action = sample_action(ai_module, torch.from_numpy(obs['ai']).unsqueeze(0).float())
-        human_action = sample_action(human_module, torch.from_numpy(obs['human']).unsqueeze(0).float())
-        actions = {'human': human_action,
-                   'ai': ai_action}
-
-        obs, rewards, terminateds, _, _ = env.step(actions)
-        env.render()
-        time.sleep(0.1)
-
-        if terminateds['__all__']:
-            break
-
-
 def load_modules(args):
     current_dir = os.getcwd()
     storage_path = os.path.join(current_dir, args.save_dir)
@@ -97,6 +77,25 @@ def load_modules(args):
     ))
     return ai_module, human_module
 
+
+def main(args):
+    ai_module, human_module = load_modules(args)
+    env.game.on_init()
+    obs, info = env.reset()
+    env.render()
+
+    while True:
+        ai_action = sample_action(ai_module, torch.from_numpy(obs['ai']).unsqueeze(0).float())
+        human_action = sample_action(human_module, torch.from_numpy(obs['human']).unsqueeze(0).float())
+        actions = {'human': human_action,
+                   'ai': ai_action}
+
+        obs, rewards, terminateds, _, _ = env.step(actions)
+        env.render()
+        time.sleep(0.1)
+
+        if terminateds['__all__']:
+            break
 
 if __name__ == "__main__":
     import argparse
