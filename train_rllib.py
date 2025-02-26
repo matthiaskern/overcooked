@@ -1,7 +1,7 @@
 import time
 import ray
 from ray.train import RunConfig, CheckpointConfig
-from gym_macro_overcooked.Overcooked import Overcooked_multi
+from environment import Overcooked_multi
 from ray.tune.registry import register_env
 from ray.rllib.core.rl_module.multi_rl_module import MultiRLModuleSpec
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec

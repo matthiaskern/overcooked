@@ -1,6 +1,6 @@
 import glob
 import time
-from gym_macro_overcooked.Overcooked import Overcooked_multi
+from environment import Overcooked_multi
 from ray import tune
 from ray.rllib.core.rl_module.rl_module import RLModule
 from ray.rllib.core import (

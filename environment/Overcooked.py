@@ -1,7 +1,5 @@
-from math import trunc
-import gymnasium as gym
 import numpy as np
-from .render.game import Game
+from environment.render.game import Game
 from gymnasium import spaces
 from .items import Tomato, Lettuce, Onion, Plate, Knife, Delivery, Agent, Food
 import copy

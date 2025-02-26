@@ -1,10 +1,8 @@
 import os
-import sys
 
-import pygame
 import numpy as np
 from .utils import *
-from ..items import Tomato, Lettuce, Plate, Knife, Delivery, Agent, Food
+from environment.items import Plate
 
 graphics_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'graphics'))
 _image_library = {}

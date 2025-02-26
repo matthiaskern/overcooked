@@ -1,7 +1,7 @@
 import argparse
 import copy
 
-from gym_macro_overcooked.Overcooked import Overcooked_multi
+from environment import Overcooked_multi
 from Agents import *
 import pandas as pd
 
