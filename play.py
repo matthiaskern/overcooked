@@ -126,7 +126,6 @@ class Player:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env_id', type=str, default='Overcooked-v1', help='Domain name')
     parser.add_argument('--grid_dim', type=int, nargs=2, default=[5, 5], help='Grid world size')
     parser.add_argument('--task', type=int, default=6, help='The recipe agent cooks')
     parser.add_argument('--map_type', type=str, default="A", help='The type of map')
