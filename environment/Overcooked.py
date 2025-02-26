@@ -15,20 +15,19 @@ TASKLIST = ["tomato salad", "lettuce salad", "onion salad", "lettuce-tomato sala
 
 class Overcooked_multi(MultiAgentEnv):
 
-    def __init__(self, grid_dim, task, rewardList, map_type="A", n_agent=2, obs_radius=2, mode="vector", debug=False):
+    def __init__(self, grid_dim, task, rewardList, map_type="A", mode="vector", debug=False):
         super().__init__()
         self.step_count = 0
         self.agents = self.possible_agents = ["human", "ai"]
-
+        self.n_agent = len(self.agents)
+        self.obs_radius = 0 # full observability
         self.xlen, self.ylen = grid_dim
 
         self.task = task
         self.rewardList = rewardList
         self.mapType = map_type
         self.debug = debug
-        self.n_agent = n_agent
         self.mode = mode
-        self.obs_radius = obs_radius
 
         self.reward = None
 

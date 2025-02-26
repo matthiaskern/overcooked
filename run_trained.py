@@ -1,6 +1,6 @@
 import glob
 import time
-from environment import Overcooked_multi
+from environment.Overcooked import Overcooked_multi
 from ray import tune
 from ray.rllib.core.rl_module.rl_module import RLModule
 from ray.rllib.core import (
@@ -31,7 +31,6 @@ env_params = {
     "task": "tomato salad",
     "rewardList": reward_config,
     "map_type": "A",
-    "obs_radius": 0,  # full observability.
     "mode": "vector",
     "debug": False,
 }
@@ -52,32 +51,7 @@ def sample_action(mdl, obs):
         raise NotImplementedError("Something weird is going on when sampling acitons")
 
 def main(args):
-    current_dir = os.getcwd()
-    storage_path = os.path.join(current_dir, args.save_dir)
-    p = f"{storage_path}/{args.name}_{args.rl_module}_*"
-    experiment_name = glob.glob(p)[-1]
-    print(f"Loading results from {experiment_name}...")
-    restored_tuner = tune.Tuner.restore(experiment_name, trainable="PPO")
-    result_grid = restored_tuner.get_results()
-    best_result = result_grid.get_best_result(metric=f"{ENV_RUNNER_RESULTS}/{EPISODE_RETURN_MEAN}", mode="max")
-    print(best_result.config)
-    best_checkpoint = best_result.checkpoint
-
-    human_module = RLModule.from_checkpoint(os.path.join(
-        best_checkpoint.path,
-        COMPONENT_LEARNER_GROUP,
-        COMPONENT_LEARNER,
-        COMPONENT_RL_MODULE,
-        'human',
-    ))
-
-    ai_module = RLModule.from_checkpoint(os.path.join(
-        best_checkpoint.path,
-        COMPONENT_LEARNER_GROUP,
-        COMPONENT_LEARNER,
-        COMPONENT_RL_MODULE,
-        'ai',
-    ))
+    ai_module, human_module = load_modules(args)
     env.game.on_init()
     obs, info = env.reset()
     env.render()
@@ -94,6 +68,35 @@ def main(args):
 
         if terminateds['__all__']:
             break
+
+
+def load_modules(args):
+    current_dir = os.getcwd()
+    storage_path = os.path.join(current_dir, args.save_dir)
+    p = f"{storage_path}/{args.name}_{args.rl_module}_*"
+    experiment_name = glob.glob(p)[-1]
+    print(f"Loading results from {experiment_name}...")
+    restored_tuner = tune.Tuner.restore(experiment_name, trainable="PPO")
+    result_grid = restored_tuner.get_results()
+    best_result = result_grid.get_best_result(metric=f"{ENV_RUNNER_RESULTS}/{EPISODE_RETURN_MEAN}", mode="max")
+    print(best_result.config)
+    best_checkpoint = best_result.checkpoint
+    human_module = RLModule.from_checkpoint(os.path.join(
+        best_checkpoint.path,
+        COMPONENT_LEARNER_GROUP,
+        COMPONENT_LEARNER,
+        COMPONENT_RL_MODULE,
+        'human',
+    ))
+    ai_module = RLModule.from_checkpoint(os.path.join(
+        best_checkpoint.path,
+        COMPONENT_LEARNER_GROUP,
+        COMPONENT_LEARNER,
+        COMPONENT_RL_MODULE,
+        'ai',
+    ))
+    return ai_module, human_module
+
 
 if __name__ == "__main__":
     import argparse

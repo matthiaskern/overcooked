@@ -1,7 +1,7 @@
 import argparse
 import copy
 
-from environment import Overcooked_multi
+from environment.Overcooked import Overcooked_multi
 from Agents import *
 import pandas as pd
 
@@ -34,8 +34,6 @@ class Player:
             'task': TASKLIST[task],
             'rewardList': self.REWARD_LIST,
             'map_type': map_type,
-            'n_agent': n_agent,
-            'obs_radius': obs_radius,
             'mode': mode,
             'debug': debug
         }
@@ -129,11 +127,9 @@ class Player:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_id', type=str, default='Overcooked-v1', help='Domain name')
-    parser.add_argument('--n_agent', type=int, default=2, help='Number of agents')
     parser.add_argument('--grid_dim', type=int, nargs=2, default=[5, 5], help='Grid world size')
     parser.add_argument('--task', type=int, default=6, help='The recipe agent cooks')
     parser.add_argument('--map_type', type=str, default="A", help='The type of map')
-    parser.add_argument('--obs_radius', type=int, default=2, help='The radius of the agents')
     parser.add_argument('--mode', type=str, default="vector", help='The type of observation (vector/image)')
     parser.add_argument('--debug', type=bool, default=True, help='Whether to print debug information and render')
 

@@ -25,7 +25,6 @@ def define_env():
         "task": "tomato salad",
         "rewardList": reward_config,
         "map_type": "A",
-        "obs_radius": 0, # full observability.
         "mode": "vector",
         "debug": False,
     }
