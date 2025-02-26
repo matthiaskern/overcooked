@@ -23,7 +23,7 @@ class Overcooked_multi(MultiAgentEnv):
         self.obs_radius = 0 # full observability
         self.xlen, self.ylen = grid_dim
 
-        self.task = task
+        self.task = task #TODO: change to task index and random sampling in reset.
         self.rewardList = rewardList
         self.mapType = map_type
         self.debug = debug
