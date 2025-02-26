@@ -110,3 +110,5 @@ dmypy.json
 
 experiments/
 runs/
+wandb/
+.idea/
