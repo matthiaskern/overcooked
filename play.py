@@ -29,7 +29,7 @@ class Player:
         "step penalty": -0.1
     }
 
-    def __init__(self, grid_dim, task, map_type, mode, debug, agent='human'):
+    def __init__(self, grid_dim, task, map_type, mode, debug, agent='human', llm_model=None):
         self.env_params = {
             'grid_dim': grid_dim,
             'task': TASKLIST[task],
@@ -54,7 +54,14 @@ class Player:
                 action_space=self.env.action_spaces['ai'],
                 inference_only=True
             )
-
+        elif agent == 'llm':
+            self.agent = LLMAgent(
+                observation_space=self.env.observation_spaces['ai'],
+                action_space=self.env.action_spaces['ai'],
+                inference_only=True,
+                llm_model=llm_model,
+            )
+            print(f"LLM agent configured with grid size: {grid_dim} and task: {TASKLIST[task]}")
         elif agent == 'human':
             self.agent = 'human'
 
@@ -99,7 +106,6 @@ class Player:
             row.append(action['human'])
             row.append(action['ai'])
 
-
             new_obs, reward, done, _, _ = self.env.step(action)
 
             row.append(new_obs['human'])
@@ -132,6 +138,8 @@ if __name__ == '__main__':
     parser.add_argument('--map_type', type=str, default="A", help='The type of map')
     parser.add_argument('--mode', type=str, default="vector", help='The type of observation (vector/image)')
     parser.add_argument('--debug', type=bool, default=True, help='Whether to print debug information and render')
+    parser.add_argument('--agent', type=str, default='human', help='Type of agent, e.g. (human|llm)')
+    parser.add_argument('--llm_model', type=str, default=None, help='LLM model to use (e.g. "openai/gpt-4o")')
 
     params = vars(parser.parse_args())
 

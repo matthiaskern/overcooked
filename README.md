@@ -148,6 +148,27 @@ Env terminates when the correct dish is delivered.
 ## Extention
 The values of reward can be changed in rewardList. Users can add new map of different layout by adding map in overcooked_V1.py. The new map is allowed to change the position of entities or delete any entities. Adding new entities is not supported.
 
+## LLM Agent
+To use the LLM-based agent:
+
+1. Install the LiteLLM package:
+```
+pip install litellm
+```
+
+2. Set your API key (check out other providers https://docs.litellm.ai/docs/):
+```
+export OPENAI_API_KEY=your_api_key_here
+export ANTHROPIC_API_KEY=your_api_key_here
+export DEEPSEEK_API_KEY=your_api_key_here
+```
+
+3. Co-play with the LLM agent:
+```
+# Play with LLM agent as teammate
+python play.py --agent llm --llm_model gpt-4o --llm_provider openai
+```
+
 ## Citations
 If you are using MacroMARL in your research, please cite the corresponding papers listed below:
 ```
