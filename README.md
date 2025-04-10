@@ -158,7 +158,7 @@ pip install litellm
 
 2. Set your API key (check out other providers https://docs.litellm.ai/docs/):
 ```
-export OPENAI_API_KEY=your_api_key_here
+export OPENAI_API_KEY=yoyur_api_key_here
 export ANTHROPIC_API_KEY=your_api_key_here
 export DEEPSEEK_API_KEY=your_api_key_here
 ```
