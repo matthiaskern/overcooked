@@ -169,6 +169,11 @@ export DEEPSEEK_API_KEY=your_api_key_here
 python play.py --agent llm --llm_model openai/gpt-4o
 ```
 
+```
+# Let the LLM agent play
+python play.py --agent llm --llm_model openai/gpt-4o --auto-play true
+```
+
 ## Citations
 If you are using MacroMARL in your research, please cite the corresponding papers listed below:
 ```

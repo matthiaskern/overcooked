@@ -29,7 +29,7 @@ class Player:
         "step penalty": -0.1
     }
 
-    def __init__(self, grid_dim, task, map_type, mode, debug, agent='human', llm_model=None):
+    def __init__(self, grid_dim, task, map_type, mode, debug, agent='human', llm_model=None, auto_play=False):
         self.env_params = {
             'grid_dim': grid_dim,
             'task': TASKLIST[task],
@@ -73,6 +73,7 @@ class Player:
         self.rewards = 0
         self.discount = 1
         self.step = 0
+        self.auto_play = auto_play
 
     def run(self):
         self.env.game.on_init()
@@ -84,8 +85,10 @@ class Player:
             obs=new_obs
             row = [obs['human']]
             self.step += 1
-            input_human = input("Input Human: ").strip().split(" ")
-
+            if self.auto_play:
+                input_human = "q"
+            else:
+                input_human = input("Input Human: ").strip().split(" ")
 
             if input_human == ['p']:
                 self.save_data(data)
@@ -142,6 +145,7 @@ if __name__ == '__main__':
     parser.add_argument('--debug', type=bool, default=True, help='Whether to print debug information and render')
     parser.add_argument('--agent', type=str, default='human', help='Type of agent, e.g. (human|llm)')
     parser.add_argument('--llm_model', type=str, default=None, help='LLM model to use (e.g. "openai/gpt-4o")')
+    parser.add_argument('--auto-play', type=bool, default=False, help='Keep the human stationary')
 
     params = vars(parser.parse_args())
 
