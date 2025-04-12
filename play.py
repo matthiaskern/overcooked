@@ -60,6 +60,7 @@ class Player:
                 action_space=self.env.action_spaces['ai'],
                 inference_only=True,
                 llm_model=llm_model,
+                environment=self.env
             )
             print(f"LLM agent configured with grid size: {grid_dim} and task: {TASKLIST[task]}")
         elif agent == 'human':
@@ -97,6 +98,7 @@ class Player:
 
             else:
                 input_ai = self.agent._forward_inference({"obs": [obs['ai']]})['actions']
+                input_ai = [list(self.ACTION_MAPPING.keys())[list(self.ACTION_MAPPING.values()).index(input_ai[0])]]
 
             action = {
                 "human": self.ACTION_MAPPING[input_human[0]],
