@@ -1,137 +1,16 @@
 import re
 import numpy as np
 import litellm
-        
+from environment.items import Plate, Food
+
 class OvercookedLLM:
     def __init__(self, llm_model: str = "openai/gpt-4o"):
         self.model = llm_model
 
-    def extract_items_from_observation(self, observations):
-        print("Observation length:", len(observations))
+    def create_prompt_from_environment(self, env):
+        grid_size = (env.xlen, env.ylen)
         
-        items = []
-        i = 0
-        
-        while i < len(observations) - 7:
-            x = observations[i]
-            y = observations[i+1]
-            i += 2
-            
-            if i < len(observations) - 7:
-                status = observations[i]
-                if 0 <= status <= 1:
-                    items.append({"x": x, "y": y, "status": status})
-                    i += 1
-                else:
-                    items.append({"x": x, "y": y})
-            else:
-                items.append({"x": x, "y": y})
-        
-        agent_count = 0
-        food_count = {'tomato': 0, 'lettuce': 0, 'onion': 0}
-        plate_count = 0
-        knife_count = 0
-        delivery_count = 0
-        
-        for idx, item in enumerate(items):
-            if idx < 2:
-                # first items are agents
-                item["type"] = "agent"
-                item["subtype"] = "human" if idx == 0 else "ai"
-                agent_count += 1
-            elif "status" in item and idx < 5:
-                if food_count["tomato"] == 0:
-                    item["type"] = "food"
-                    item["subtype"] = "tomato"
-                    food_count["tomato"] += 1
-                elif food_count["lettuce"] == 0:
-                    item["type"] = "food"
-                    item["subtype"] = "lettuce"
-                    food_count["lettuce"] += 1
-                elif food_count["onion"] == 0:
-                    item["type"] = "food"
-                    item["subtype"] = "onion"
-                    food_count["onion"] += 1
-                else:
-                    item["type"] = "food"
-                    item["subtype"] = "unknown"
-            elif plate_count < 1:
-                item["type"] = "plate"
-                plate_count += 1
-            elif knife_count < 1:
-                item["type"] = "knife"
-                knife_count += 1
-            elif delivery_count < 1:
-                item["type"] = "delivery"
-                delivery_count += 1
-            else:
-                item["type"] = "unknown"
-        
-        # Extract one-hot task encoding
-        task_encoding = observations[-7:]
-        task_idx = np.argmax(task_encoding) if np.max(task_encoding) > 0 else -1
-        
-        print(f"Processed {len(items)} items from observation vector")
-        for idx, item in enumerate(items):
-            item_type = item.get("type", "unknown")
-            item_subtype = item.get("subtype", "")
-            status_info = f", status: {item['status']:.1f}" if "status" in item else ""
-            print(f"Item {idx}: {item_type} {item_subtype} at ({item['x']:.2f}, {item['y']:.2f}){status_info}")
-        
-        return items, task_idx
-    
-    def create_prompt(self, observations: np.ndarray) -> str:
-        grid_size = 5  # Default grid size
-        
-        items_data, task_idx = self.extract_items_from_observation(observations)
-        
-        items_info = []
-        agent_positions = []
-        
-        for item in items_data:
-            x = int(item["x"] * grid_size)
-            y = int(item["y"] * grid_size)
-            item_type = item.get("type", "unknown")
-            
-            if item_type == "agent":
-                agent_positions.append((x, y))
-                agent_role = item.get("subtype", "unknown")
-                holding_status = ""
-                if "status" in item:
-                    holding_status = f", holding item: {'Yes' if item['status'] > 0 else 'No'}"
-                items_info.append(f"- {agent_role.capitalize()} agent: position ({x}, {y}){holding_status}")
-                
-            elif item_type == "food":
-                food_type = item.get("subtype", "unknown")
-                chopped_status = ""
-                if "status" in item:
-                    chopped_status = f", chopped progress: {item['status']:.1f}"
-                    chopped_text = "Chopped" if item['status'] >= 1.0 else "Fresh"
-                    items_info.append(f"- {chopped_text} {food_type.capitalize()}: position ({x}, {y}){chopped_status}")
-                else:
-                    items_info.append(f"- {food_type.capitalize()}: position ({x}, {y})")
-                    
-            elif item_type == "plate":
-                containing_status = ""
-                if "status" in item:
-                    containing_status = f", contains food: {'Yes' if item['status'] > 0 else 'No'}"
-                items_info.append(f"- Plate: position ({x}, {y}){containing_status}")
-                
-            elif item_type == "knife":
-                holding_status = ""
-                if "status" in item:
-                    holding_status = f", holding food: {'Yes' if item['status'] > 0 else 'No'}"
-                items_info.append(f"- Cutting board: position ({x}, {y}){holding_status}")
-                
-            elif item_type == "delivery":
-                items_info.append(f"- Delivery counter: position ({x}, {y})")
-                
-            else:
-                status_info = f", status: {item['status']:.1f}" if "status" in item else ""
-                items_info.append(f"- Unknown item: position ({x}, {y}){status_info}")
-
-        # print(items_info)
-        
+        task_idx = np.argmax(env.oneHotTask) if np.max(env.oneHotTask) > 0 else -1
         task_names = [
             "tomato salad", "lettuce salad", "onion salad",
             "lettuce-tomato salad", "onion-tomato salad",
@@ -139,13 +18,89 @@ class OvercookedLLM:
         ]
         task = task_names[task_idx] if 0 <= task_idx < len(task_names) else "unknown task"
         
-        agent_x, agent_y = agent_positions[1] if len(agent_positions) > 1 else (0, 0)
+        ai_agent = env.agent[1] if len(env.agent) > 1 else None
+        
+        if not ai_agent:
+            raise Exception("AI Agent not found in env")
+        
+        ai_x, ai_y = ai_agent.x, ai_agent.y
+        
+        items_info = []
+        
+        for idx, agent in enumerate(env.agent):
+            agent_role = "Human" if idx == 0 else "AI"
+            holding_status = f", holding item: {'Yes' if agent.holding else 'No'}"
+            items_info.append(f"- {agent_role} agent: position ({agent.x}, {agent.y}){holding_status}")
+            
+            if agent.holding:
+                holding_info = f"  └─ Holding: "
+                if isinstance(agent.holding, Food):
+                    holding_info += f"{agent.holding.rawName.capitalize()}"
+                    if agent.holding.chopped:
+                        holding_info += " (Chopped)"
+                    else:
+                        holding_info += f" (Chopping progress: {agent.holding.cur_chopped_times}/{agent.holding.required_chopped_times})"
+                elif isinstance(agent.holding, Plate):
+                    holding_info += "Plate"
+                    if agent.holding.containing:
+                        holding_info += " containing: "
+                        food_items = []
+                        for food in agent.holding.containing:
+                            food_items.append(f"{food.rawName.capitalize()} (Chopped)" if food.chopped else f"{food.rawName.capitalize()}")
+                        holding_info += ", ".join(food_items)
+                items_info.append(holding_info)
+        
+        for tomato in env.tomato:
+            status = f", chopped progress: {tomato.cur_chopped_times}/{tomato.required_chopped_times}"
+            chopped_text = "Chopped" if tomato.chopped else "Fresh"
+            items_info.append(f"- {chopped_text} Tomato: position ({tomato.x}, {tomato.y}){status}")
+            
+        for lettuce in env.lettuce:
+            status = f", chopped progress: {lettuce.cur_chopped_times}/{lettuce.required_chopped_times}"
+            chopped_text = "Chopped" if lettuce.chopped else "Fresh"
+            items_info.append(f"- {chopped_text} Lettuce: position ({lettuce.x}, {lettuce.y}){status}")
+            
+        for onion in env.onion:
+            status = f", chopped progress: {onion.cur_chopped_times}/{onion.required_chopped_times}"
+            chopped_text = "Chopped" if onion.chopped else "Fresh"
+            items_info.append(f"- {chopped_text} Onion: position ({onion.x}, {onion.y}){status}")
+        
+        for plate in env.plate:
+            containing_status = ""
+            if plate.containing:
+                containing_status = ", contains: "
+                food_items = []
+                for food in plate.containing:
+                    food_items.append(f"{food.rawName.capitalize()} (Chopped)" if food.chopped else f"{food.rawName.capitalize()}")
+                containing_status += ", ".join(food_items)
+            items_info.append(f"- Plate: position ({plate.x}, {plate.y}){containing_status}")
+        
+        for knife in env.knife:
+            holding_info = ""
+            if knife.holding:
+                if isinstance(knife.holding, Food):
+                    food = knife.holding
+                    progress = f", chopping progress: {food.cur_chopped_times}/{food.required_chopped_times}"
+                    holding_info = f", holding: {food.rawName.capitalize()}{progress}"
+                elif isinstance(knife.holding, Plate):
+                    plate = knife.holding
+                    if plate.containing:
+                        food_items = []
+                        for food in plate.containing:
+                            food_items.append(f"{food.rawName.capitalize()} (Chopped)" if food.chopped else f"{food.rawName.capitalize()}")
+                        holding_info = f", holding: Plate containing {', '.join(food_items)}"
+                    else:
+                        holding_info = ", holding: Empty plate"
+            items_info.append(f"- Cutting board: position ({knife.x}, {knife.y}){holding_info}")
+        
+        for delivery in env.delivery:
+            items_info.append(f"- Delivery counter: position ({delivery.x}, {delivery.y})")
         
         prompt = f"""You are an AI agent playing Overcooked, a cooperative cooking game. Your goal is to prepare and deliver {task}.
 
 Current Game State:
-- Your position: ({agent_x}, {agent_y})
-- Grid size: {grid_size}x{grid_size}
+- Your position: ({ai_x}, {ai_y})
+- Grid size: {grid_size[0]}x{grid_size[1]}
 
 Items in the environment:
 {chr(10).join(items_info)}
@@ -175,16 +130,14 @@ Format your response as: "Action: [dsawq] - [explanation]"
         
         return "q"
     
-    def get_action(self, observations: np.ndarray) -> str:
-        # print("Raw observation:", observations)
-        
+    def get_action(self, env) -> str:
         try:
-            prompt = self.create_prompt(observations)
-            # print(prompt)
-
+            prompt = self.create_prompt_from_environment(env)
+            print(prompt)
+            
             response = self.call_llm(prompt)
             print(response)
-
+            
             action = self.parse_response(response)
             return action
         except Exception as e:

@@ -64,20 +64,25 @@ class RandomRLM(RLModule):
 
 
 class LLMAgent(RLModule):
-    def __init__(self, *args, llm_model="openai/gpt-4o", **kwargs):
+    def __init__(self, *args, environment, llm_model="openai/gpt-4o",  **kwargs):
         super().__init__(*args, **kwargs)
         self.llm_agent = OvercookedLLM(llm_model=llm_model)
+        self.environment = environment
 
     @override(RLModule)
     def _forward_inference(self, batch, **kwargs):
-        observations = batch[Columns.OBS]
-        actions = []
-
-        for obs in observations:
-            action = self.llm_agent.get_action(obs)
-            actions.append(action)
-
-        return {Columns.ACTIONS: np.array(actions)}
+        action = self.llm_agent.get_action(self.environment)
+        
+        action_mapping = {
+            "w": 3,  # UP
+            "d": 0,  # RIGHT
+            "a": 2,  # LEFT
+            "s": 1,  # DOWN
+            "q": 4   # STAY
+        }
+        
+        numeric_action = action_mapping.get(action, 4)
+        return {Columns.ACTIONS: np.array([numeric_action])}
 
     @override(RLModule)
     def _forward_exploration(self, batch, **kwargs):
