@@ -1,6 +1,5 @@
 import argparse
 import copy
-
 from environment.Overcooked import Overcooked_multi
 from Agents import *
 import pandas as pd
@@ -10,7 +9,6 @@ TASKLIST = [
     "lettuce-tomato salad", "onion-tomato salad",
     "lettuce-onion salad", "lettuce-onion-tomato salad"
 ]
-
 
 class Player:
     ACTION_MAPPING = {
@@ -41,13 +39,11 @@ class Player:
         self.env = Overcooked_multi(**self.env_params)
 
         if agent == 'stationary':
-
             self.agent = AlwaysStationaryRLM(
                 observation_space=self.env.observation_spaces['ai'],
                 action_space=self.env.action_spaces['ai'],
                 inference_only=True
             )
-
         elif agent == 'random':
             self.agent = RandomRLM(
                 observation_space=self.env.observation_spaces['ai'],
@@ -62,18 +58,37 @@ class Player:
                 llm_model=llm_model,
                 environment=self.env
             )
-            print(f"LLM agent configured with grid size: {grid_dim} and task: {TASKLIST[task]}")
+            if debug:
+                print(f"LLM agent configured with grid size: {grid_dim} and task: {TASKLIST[task]}")
         elif agent == 'human':
             self.agent = 'human'
-
         else:
-            raise NotImplementedError(f'{agent} is unknonw')
-
+            raise NotImplementedError(f'{agent} is unknown')
 
         self.rewards = 0
         self.discount = 1
         self.step = 0
         self.auto_play = auto_play
+        self.debug = debug
+
+    def print_state_debug(self):
+        if not self.debug:
+            return
+        print("\n===== ENV STATE DEBUG =====")
+        for i, a in enumerate(self.env.agent):
+            holding = "Nothing"
+            if a.holding:
+                holding = getattr(a.holding, "rawName", str(a.holding))
+            print(f"Agent #{i} at ({a.x},{a.y}) holding: {holding}")
+        print("\nItems on map:")
+        for item in self.env.itemList:
+            status = "N/A"
+            if hasattr(item, "chopped"):
+                status = f"Chopped: {item.chopped} ({item.cur_chopped_times}/{item.required_chopped_times})"
+            elif hasattr(item, "containing"):
+                status = f"Contains: {', '.join([f.rawName for f in item.containing])}" if item.containing else "Empty"
+            print(f"{item.rawName} at ({item.x},{item.y}) - {status}")
+        print("===========================\n")
 
     def run(self):
         self.env.game.on_init()
@@ -82,26 +97,22 @@ class Player:
         data = [["obs", "action_human", "action_ai", "new_obs", "reward_human", "reward_ai", "done"]]
 
         while True:
-            obs=new_obs
+            obs = new_obs
             row = [obs['human']]
             self.step += 1
-            if self.auto_play:
-                input_human = "q"
-            else:
-                input_human = input("Input Human: ").strip().split(" ")
+
+            self.print_state_debug()
+
+            prev_pos = (self.env.agent[1].x, self.env.agent[1].y)
+
+            input_human = ["q"] if self.auto_play else input("Input Human: ").strip().split(" ")
 
             if input_human == ['p']:
                 self.save_data(data)
                 continue
 
-
-            if self.agent == 'human':
-                input_ai = input("Input AI: ").strip().split(" ")
-
-
-            else:
-                input_ai = self.agent._forward_inference({"obs": [obs['ai']]})['actions']
-                input_ai = [list(self.ACTION_MAPPING.keys())[list(self.ACTION_MAPPING.values()).index(input_ai[0])]]
+            input_ai = self.agent._forward_inference({"obs": [obs['ai']]})['actions']
+            input_ai = [list(self.ACTION_MAPPING.keys())[list(self.ACTION_MAPPING.values()).index(input_ai[0])]]
 
             action = {
                 "human": self.ACTION_MAPPING[input_human[0]],
@@ -112,6 +123,15 @@ class Player:
             row.append(action['ai'])
 
             new_obs, reward, done, _, _ = self.env.step(action)
+
+            new_pos = (self.env.agent[1].x, self.env.agent[1].y)
+            moved = new_pos != prev_pos
+            if self.debug:
+                print(f"[STEP RESULT] primitive actions: [{action['human']}, {action['ai']}] | Rewards: H={reward['human']} AI={reward['ai']} | Done: {done['__all__']}")
+                if not moved:
+                    print("[WARNING] AI DID NOT MOVE!")
+
+            self.agent.last_result = f"Executed: {input_ai[0]}, {'Success' if moved else 'Failed to move'}"
 
             row.append(new_obs['human'])
             row.append(reward['human'])
@@ -128,11 +148,8 @@ class Player:
 
     def save_data(self, data):
         columns = data[0]
-        # Extract data
         data = data[1:]
-        # Create DataFrame
         df = pd.DataFrame(data, columns=columns)
-        # Save to CSV
         csv_filename = "output.csv"
         df.to_csv(csv_filename, index=False)
 
