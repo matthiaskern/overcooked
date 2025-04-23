@@ -1,160 +1,158 @@
 import re
-import numpy as np
 import litellm
-from environment.items import Plate, Food
+from collections import deque
+from environment.items import Food, Plate
 
-class OvercookedLLM:
-    def __init__(self, llm_model: str = "openai/gpt-4o"):
-        self.model = llm_model
 
-    def create_prompt_from_environment(self, env):
-        grid_size = (env.xlen, env.ylen)
-        
-        task_idx = np.argmax(env.oneHotTask) if np.max(env.oneHotTask) > 0 else -1
-        task_names = [
-            "tomato salad", "lettuce salad", "onion salad",
-            "lettuce-tomato salad", "onion-tomato salad",
-            "lettuce-onion salad", "lettuce-onion-tomato salad"
-        ]
-        task = task_names[task_idx] if 0 <= task_idx < len(task_names) else "unknown task"
-        
-        ai_agent = env.agent[1] if len(env.agent) > 1 else None
-        
-        if not ai_agent:
-            raise Exception("AI Agent not found in env")
-        
-        ai_x, ai_y = ai_agent.x, ai_agent.y
-        
-        items_info = []
-        
-        for idx, agent in enumerate(env.agent):
-            agent_role = "Human" if idx == 0 else "AI"
-            holding_status = f", holding item: {'Yes' if agent.holding else 'No'}"
-            items_info.append(f"- {agent_role} agent: position ({agent.x}, {agent.y}){holding_status}")
-            
-            if agent.holding:
-                holding_info = f"  └─ Holding: "
-                if isinstance(agent.holding, Food):
-                    holding_info += f"{agent.holding.rawName.capitalize()}"
-                    if agent.holding.chopped:
-                        holding_info += " (Chopped)"
-                    else:
-                        holding_info += f" (Chopping progress: {agent.holding.cur_chopped_times}/{agent.holding.required_chopped_times})"
-                elif isinstance(agent.holding, Plate):
-                    holding_info += "Plate"
-                    if agent.holding.containing:
-                        holding_info += " containing: "
-                        food_items = []
-                        for food in agent.holding.containing:
-                            food_items.append(f"{food.rawName.capitalize()} (Chopped)" if food.chopped else f"{food.rawName.capitalize()}")
-                        holding_info += ", ".join(food_items)
-                items_info.append(holding_info)
-        
-        for tomato in env.tomato:
-            status = f", chopped progress: {tomato.cur_chopped_times}/{tomato.required_chopped_times}"
-            chopped_text = "Chopped" if tomato.chopped else "Fresh"
-            items_info.append(f"- {chopped_text} Tomato: position ({tomato.x}, {tomato.y}){status}")
-            
-        for lettuce in env.lettuce:
-            status = f", chopped progress: {lettuce.cur_chopped_times}/{lettuce.required_chopped_times}"
-            chopped_text = "Chopped" if lettuce.chopped else "Fresh"
-            items_info.append(f"- {chopped_text} Lettuce: position ({lettuce.x}, {lettuce.y}){status}")
-            
-        for onion in env.onion:
-            status = f", chopped progress: {onion.cur_chopped_times}/{onion.required_chopped_times}"
-            chopped_text = "Chopped" if onion.chopped else "Fresh"
-            items_info.append(f"- {chopped_text} Onion: position ({onion.x}, {onion.y}){status}")
-        
-        for plate in env.plate:
-            containing_status = ""
-            if plate.containing:
-                containing_status = ", contains: "
-                food_items = []
-                for food in plate.containing:
-                    food_items.append(f"{food.rawName.capitalize()} (Chopped)" if food.chopped else f"{food.rawName.capitalize()}")
-                containing_status += ", ".join(food_items)
-            items_info.append(f"- Plate: position ({plate.x}, {plate.y}){containing_status}")
-        
-        for knife in env.knife:
-            holding_info = ""
-            if knife.holding:
-                if isinstance(knife.holding, Food):
-                    food = knife.holding
-                    progress = f", chopping progress: {food.cur_chopped_times}/{food.required_chopped_times}"
-                    holding_info = f", holding: {food.rawName.capitalize()}{progress}"
-                elif isinstance(knife.holding, Plate):
-                    plate = knife.holding
-                    if plate.containing:
-                        food_items = []
-                        for food in plate.containing:
-                            food_items.append(f"{food.rawName.capitalize()} (Chopped)" if food.chopped else f"{food.rawName.capitalize()}")
-                        holding_info = f", holding: Plate containing {', '.join(food_items)}"
-                    else:
-                        holding_info = ", holding: Empty plate"
-            items_info.append(f"- Cutting board: position ({knife.x}, {knife.y}){holding_info}")
-        
-        for delivery in env.delivery:
-            items_info.append(f"- Delivery counter: position ({delivery.x}, {delivery.y})")
-        
-        prompt = f"""You are an AI agent playing Overcooked, a cooperative cooking game. Your goal is to prepare and deliver {task}.
+class BaseLLMWrapper:
+    def __init__(self, model="openai/gpt-4o", memory_limit=10):
+        self.model = model
+        self.planner_memory = deque(maxlen=memory_limit)
+        self.executor_memory = deque(maxlen=memory_limit)
+        self.plan = None
 
-Current Game State:
-- Your position: ({ai_x}, {ai_y})
-- Grid size: {grid_size[0]}x{grid_size[1]}
-
-Items in the environment:
-{chr(10).join(items_info)}
-
-Actions:
-d: Move RIGHT
-s: Move DOWN 
-a: Move LEFT
-w: Move UP
-q: STAY (perform action at current position)
-
-Rules:
-1. You need to collect raw ingredients as defined in the task
-2. Chop ingredients after collecting by going to the knife's position and using it
-3. Place chopped ingredients on a plate
-4. Deliver the completed dish to the delivery counter
-
-Respond with a single action letter and a brief explanation of your reasoning.
-Format your response as: "Action: [dsawq] - [explanation]"
-"""
-        return prompt
-    
-    def parse_response(self, response: str) -> str:
-        action_match = re.search(r'Action:\s*([dsawq])', response)
-        if action_match:
-            return action_match.group(1)
-        
-        return "q"
-    
-    def get_action(self, env) -> str:
+    def call(self, messages):
         try:
-            prompt = self.create_prompt_from_environment(env)
-            print(prompt)
-            
-            response = self.call_llm(prompt)
-            print(response)
-            
-            action = self.parse_response(response)
-            return action
-        except Exception as e:
-            print(f"Error in get_action: {e}")
-            return "q"
+            print("\n=== LLM Prompt ===")
+            print(messages[-1]["content"])
+            print("==================\n")
 
-    def call_llm(self, prompt: str) -> str:
-        try:
             response = litellm.completion(
                 model=self.model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=100,
+                messages=messages,
+                max_tokens=300,
                 temperature=0.7
             )
-            return response.choices[0].message.content
+
+            content = response.choices[0].message.content
+
+            print("=== LLM Response ===")
+            print(content)
+            print("====================\n")
+
+            return content
         except Exception as e:
-            print(f"Error calling LLM: {e}")
-            return "Action: q - Error"
+            print(f"[LLM ERROR] {e}")
+            return "Action: w\nVerify: no"
+
+    def extract_action_and_verify(self, text):
+        action_match = re.search(r"Action:\s*\[?([wsad])\]?", text, re.IGNORECASE)
+        verify_match = re.search(r"Verify:\s*(yes|no)", text, re.IGNORECASE)
+
+        action = action_match.group(1).lower() if action_match else None
+        verified = verify_match.group(1).lower() if verify_match else "no"
+
+        return action if verified == "yes" and action else "w"
+
+    def update_plan(self, task):
+        prompt = f"""You are a planner for Overcooked.
+
+    Task: {task}
+
+    Generate a high-level plan in steps.
+
+    IMPORTANT RULES:
+    - You MUST put chopped ingredients onto a plate before serving.
+    - You CANNOT serve chopped ingredients alone.
+    - Delivery is ONLY valid when you move a plate (with ingredients) into the delivery tile (⭐).
+    - Plates are labeled 'P' on the map.
+    - Delivery areas are labeled '*' on the map.
+
+    NOTE: To pick up, chop, serve, or interact — just MOVE into the item's direction. The [q] action does nothing in this game.
+    """
+        self.plan = self.call([{"role": "user", "content": prompt}])
+        self.planner_memory.append(self.plan)
+
+
+    def get_action(self, env, agent_idx, last_action=None, last_result=None):
+        agent = env.agent[agent_idx]
+        task = ", ".join(env.task) if isinstance(env.task, list) else env.task
+
+        if not self.plan:
+            self.update_plan(task)
+
+        state = self._describe_env(env)
+        holding = self._describe_holding(agent)
+        memory_text = "\n".join(self.executor_memory)
+        grid = self._render_grid(env)
+
+        prompt = f"""You are the AI agent in Overcooked.
+
+    Task: {task}
+
+    Your position: ({agent.x}, {agent.y})
+    Holding: {holding}
+
+    Last action: {last_action or "None"}
+    Result: {last_result or "None"}
+
+    Plan:
+    {self.plan}
+
+    Environment:
+    {state}
+
+    Grid View:
+    {grid}
+
+    Memory:
+    {memory_text}
+
+    IMPORTANT RULES:
+    - If holding chopped ingredients, move into a Plate (P) to place the food.
+    - If holding a Plate with food, move into the Delivery (⭐) to serve it.
+    - Delivery is ONLY possible with a plate, NOT directly with food.
+    - If standing directly on an item, move off first, then approach again from side.
+
+    NOTE: To pick up, chop, serve, or interact — MOVE into adjacent item's tile. The [q] action does nothing.
+
+    Respond with:
+    Thought: ...
+    Plan: ...
+    Action: [w/a/s/d] - [explanation]
+    Verify: [yes/no] - [explanation]
+    """
+        response = self.call([{"role": "user", "content": prompt}])
+        self.executor_memory.append(response)
+        return self.extract_action_and_verify(response)
+
+    def _describe_holding(self, agent):
+        if not agent.holding:
+            return "Nothing"
+        if isinstance(agent.holding, Food):
+            return f"{agent.holding.rawName} (Chopped: {agent.holding.chopped})"
+        if isinstance(agent.holding, Plate):
+            if agent.holding.containing:
+                return "Plate with " + ", ".join(f.rawName for f in agent.holding.containing)
+            return "Empty Plate"
+        return "Unknown item"
+
+    def _describe_env(self, env):
+        parts = []
+        for item in env.itemList:
+            if isinstance(item, Food):
+                status = f"Chopped: {item.chopped} ({item.cur_chopped_times}/{item.required_chopped_times})"
+            elif isinstance(item, Plate):
+                contents = ", ".join(f.rawName for f in item.containing) if item.containing else "Empty"
+                status = f"Contains: {contents}"
+            else:
+                status = "N/A"
+            parts.append(f"{item.rawName} at ({item.x}, {item.y}) - {status}")
+        return "\n".join(parts)
+
+    def _render_grid(self, env):
+        width = env.width if hasattr(env, "width") else 5
+        height = env.height if hasattr(env, "height") else 5
+        grid = [["." for _ in range(width)] for _ in range(height)]
+        for agent in env.agent:
+            grid[agent.y][agent.x] = "A"
+        for item in env.itemList:
+            symbol = item.rawName[0].upper()
+            if isinstance(item, Plate):
+                symbol = "P"
+            if isinstance(item, Food):
+                symbol = item.rawName[0].lower()
+            if item.rawName.lower() == "delivery":
+                symbol = "*"
+            grid[item.y][item.x] = symbol
+        return "\n".join("".join(row) for row in grid)

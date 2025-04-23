@@ -1,11 +1,9 @@
 from collections import defaultdict
 import numpy as np
-
 from ray.rllib.core.columns import Columns
 from ray.rllib.core.rl_module.rl_module import RLModule
 from ray.rllib.utils.annotations import override
-
-from llm_agent import OvercookedLLM
+from llm_agent import BaseLLMWrapper
 
 class AlwaysStationaryRLM(RLModule):
     def __init__(self, *args, **kwargs):
@@ -63,42 +61,25 @@ class RandomRLM(RLModule):
         return [Columns.ACTIONS]
 
 
+ACTION_MAPPING = {
+    "d": 0,
+    "s": 1,
+    "a": 2,
+    "w": 3,
+    "q": 4
+}
+
+
 class LLMAgent(RLModule):
-    def __init__(self, *args, environment, llm_model="openai/gpt-4o",  **kwargs):
-        super().__init__(*args, **kwargs)
-        self.llm_agent = OvercookedLLM(llm_model=llm_model)
-        self.environment = environment
+    def __init__(self, observation_space, action_space, inference_only=True, llm_model:str=None, environment=None):
+        super().__init__()
+        self.llm = BaseLLMWrapper(model=llm_model)
+        self.env = environment
+        self.last_action = None
+        self.last_result = None
 
-    @override(RLModule)
-    def _forward_inference(self, batch, **kwargs):
-        action = self.llm_agent.get_action(self.environment)
-        
-        action_mapping = {
-            "w": 3,  # UP
-            "d": 0,  # RIGHT
-            "a": 2,  # LEFT
-            "s": 1,  # DOWN
-            "q": 4   # STAY
-        }
-        
-        numeric_action = action_mapping.get(action, 4)
-        return {Columns.ACTIONS: np.array([numeric_action])}
-
-    @override(RLModule)
-    def _forward_exploration(self, batch, **kwargs):
-        return self._forward_inference(batch, **kwargs)
-
-    @override(RLModule)
-    def _forward_train(self, batch, **kwargs):
-        raise NotImplementedError(
-            "LLMAgent is not trainable! Make sure you do NOT include it "
-            "in your `config.multi_agent(policies_to_train={...})` set."
-        )
-        
-    @override(RLModule)
-    def output_specs_inference(self):
-        return [Columns.ACTIONS]
-
-    @override(RLModule)
-    def output_specs_exploration(self):
-        return [Columns.ACTIONS]
+    def _forward_inference(self, input_dict):
+        action_letter = self.llm.get_action(self.env, agent_idx=1, last_action=self.last_action, last_result=self.last_result)
+        self.last_action = action_letter
+        action_index = ACTION_MAPPING.get(action_letter, 4)
+        return {"actions": [action_index]}
