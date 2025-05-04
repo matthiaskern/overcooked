@@ -67,6 +67,7 @@ class BaseLLMWrapper:
             "- Always stay within the grid and avoid stepping into walls.\n"
             "- You cannot move into another agent's tile.\n"
             "- You should cut the tomato until its chopped. Do not move until its ready and chopped."
+            "- You must PICK UP the plated tomato before you serve it!"
             
         )
         self.plan = self.call([{"role": "user", "content": prompt}])
@@ -122,9 +123,6 @@ class BaseLLMWrapper:
 
     Environment (Debug Full State):
     {debug_full_state}
-
-    Nearby Tiles:
-    {possible_moves}
 
     Agent Positions:
     {agent_positions}
@@ -287,7 +285,7 @@ class BaseLLMWrapper:
                             elif isinstance(item, Plate):
                                 what = "Plate with " + ", ".join(f.rawName for f in item.containing) if item.containing else "Empty Plate"
                             elif isinstance(item, Knife):
-                                what = "Cutting Station/Knife"
+                                what = "Cutting Station"
                             elif isinstance(item, Delivery):
                                 what = "Delivery Counter"
                             else:
@@ -296,6 +294,7 @@ class BaseLLMWrapper:
 
             results.append(f"[{dir_letter}] -> ({new_row}, {new_col}): {what}")
         return "\n".join(results)
+
 
     def _describe_env_debug(self, env):
             parts = []
@@ -338,7 +337,7 @@ class BaseLLMWrapper:
     - Holding: {holding}
     - Thought/Plan: {full_agent_thought}
     - Agent Positions: {agnet_positions}
-    - Nearby Tiles: {nearby_tiles}
+
 
     Planned Route: {route}
     Proposed Action: [{action_letter}]
