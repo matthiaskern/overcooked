@@ -31,7 +31,7 @@ class BaseLLMWrapper:
                 model=self.model,
                 messages=messages,
                 max_tokens=300,
-                temperature=0.7
+                temperature=0.1
             )
 
             content = response.choices[0].message.content
@@ -86,7 +86,6 @@ class BaseLLMWrapper:
         rendered_grid = self._render_grid(env)
         possible_moves = self._describe_possible_moves(env, agent)
         memory_text = "\n".join(self.executor_memory)
-        agent_positions = ", ".join(f"Agent #{i} at ({a.x},{a.y})" for i, a in enumerate(env.agent))
 
         feedback = ""
         max_attempts = 5
@@ -121,11 +120,8 @@ class BaseLLMWrapper:
     Environment (Summary):
     {state_summary}
 
-    Environment (Debug Full State):
-    {debug_full_state}
-
-    Agent Positions:
-    {agent_positions}
+    Grid:
+    {rendered_grid}
 
     Memory:
     {memory_text}
@@ -134,15 +130,14 @@ class BaseLLMWrapper:
 
     - Your immediate goal is one of: [get ingredient, chop ingredient, pick plate, plate food, deliver dish].
     - Construct a ROUTE: list of (row, col) steps needed to reach an tile next to the target (not directly on the target if it's an item).
-    - DO NOT move into:
-    - Tiles occupied by another agent
-    - Wall zones (row==0 or col==0 or row==max or col==max)
-    - knife is the same as cutting board.
 
     IMPORTANT:
-    - Only move INTO a tile to interact (pick, chop, plate, deliver).
-    - [q] does nothing.
-    - The delivery counter is marked * in the Grid View and can only accept PLATED FOOD.
+    - [w]: Move up or perform an action on the tile above
+    - [a]: Move left or perform an action on the tile to the left
+    - [s]: Move down or perform an action on the tile below
+    - [d]: Move right or perform an action on the tile to the right
+    - [q]: Do nothing
+    - Remember, coords are not given in x,y but in row/col. (i.e. to navigate vertically we need to change x and when we navigate horizontally we change y)
     - If the previous action failed to move, re-evaluate and fix your decision.
 
     {feedback}
@@ -151,7 +146,7 @@ class BaseLLMWrapper:
     Thought: ...
     Route: ...
     Plan: ...
-    Action: [w/a/s/d] - [reason]
+    Action: [w/a/s/d/q] - [reason]
     Verify: [yes/no] - [reason]
     """
 
@@ -193,7 +188,8 @@ class BaseLLMWrapper:
     def _describe_env(self, env):
         parts = []
         for i, agent in enumerate(env.agent):
-            parts.append(f"Agent #{i} (Human if #0, AI if #1) at ({agent.x}, {agent.y}) holding: {self._describe_holding(agent)}")
+            agent_descr = "Human" if i == 0 else "Agent"
+            parts.append(f"{agent_descr} at ({agent.x}, {agent.y}) holding: {self._describe_holding(agent)}")
         for item in env.itemList:
             if isinstance(item, Food):
                 status = f"Chopped: {item.chopped} ({item.cur_chopped_times}/{item.required_chopped_times})"
@@ -242,12 +238,13 @@ class BaseLLMWrapper:
                 grid[y][x] = "Counter"
 
         for idx, agent in enumerate(env.agent):
-            grid[agent.y][agent.x] = f"Agent{idx}"
+            agent_descr = "Human" if idx == 0 else "Agent"
+            grid[agent.y][agent.x] = f"{agent_descr}{idx}"
 
         for y in range(height):
             for x in range(width):
                 if x == 0 or x == width - 1 or y == 0 or y == height - 1:
-                    grid[y][x] = "Wall"
+                    grid[y][x] = "Counter"
 
         output = ["Grid:"]
         for y in range(height):
@@ -268,9 +265,9 @@ class BaseLLMWrapper:
             new_col = agent.x + dx  # col (x)
 
             if not (0 <= new_col < width and 0 <= new_row < height):
-                what = "Wall (Out of bounds)"
+                what = "Counter (Out of bounds)"
             elif new_col == 0 or new_row == 0 or new_row == height - 1:
-                what = "Wall (Edge)"
+                what = "Counter (Edge)"
             else:
                 what = "empty space"
                 for i, other_agent in enumerate(env.agent):
