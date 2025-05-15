@@ -171,7 +171,7 @@ python play.py --agent llm --llm_model openai/gpt-4.1
 
 ```
 # Let the LLM agent play
-python play.py --agent llm --llm_model openai/gpt-4.1 --auto-play true
+python play.py --agent llm --llm_model openai/gpt-4.1 --stationary-human true
 ```
 
 ## Citations

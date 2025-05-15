@@ -35,7 +35,7 @@ class Player:
         debug,
         agent="human",
         llm_model=None,
-        auto_play=False,
+        stationary_human=False,
         random_human=False,
     ):
         self.env_params = {
@@ -92,7 +92,7 @@ class Player:
         self.rewards = 0
         self.discount = 1
         self.step = 0
-        self.auto_play = auto_play
+        self.stationary_human = stationary_human
         self.debug = debug
 
     def print_state_debug(self):
@@ -158,10 +158,10 @@ class Player:
                 if self.debug:
                     print(f"Random Human Action: {input_human[0]}")
             else:
-                # Use real human input or auto-play
+                # Use real human input or stationary human
                 input_human = (
                     ["q"]
-                    if self.auto_play
+                    if self.stationary_human
                     else input("Input Human: ").strip().split(" ")
                 )
 
@@ -217,6 +217,7 @@ class Player:
             if done["__all__"]:
                 self.save_data(data)
                 break
+        return data
 
     def save_data(self, data):
         columns = data[0]
@@ -258,7 +259,7 @@ if __name__ == "__main__":
         help='LLM model to use (e.g. "openai/gpt-4.1")',
     )
     parser.add_argument(
-        "--auto-play",
+        "--stationary-human",
         type=bool,
         default=False,
         help="Keep the human stationary (no movement)",
