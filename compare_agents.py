@@ -122,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--map_type', type=str, default="A", help='The type of map')
     parser.add_argument('--mode', type=str, default="vector", help='The type of observation (vector/image)')
     parser.add_argument('--debug', action='store_true', help='Whether to print debug information and render')
-    parser.add_argument('--llm_model', type=str, default="openai/gpt-4o", help='LLM model to use')
+    parser.add_argument('--llm_model', type=str, default="openai/gpt-4.1", help='LLM model to use')
     parser.add_argument('--trials', type=int, default=3, help='Number of trials per configuration')
     parser.add_argument('--configs', type=str, nargs='+', default=['llm_vs_stationary', 'llm_vs_random'],
                       help='Configurations to compare')
