@@ -166,12 +166,12 @@ export DEEPSEEK_API_KEY=your_api_key_here
 3. Co-play with the LLM agent:
 ```
 # Play with LLM agent as teammate
-python play.py --agent llm --llm_model openai/gpt-4o
+python play.py --agent llm --llm_model openai/gpt-4.1
 ```
 
 ```
 # Let the LLM agent play
-python play.py --agent llm --llm_model openai/gpt-4o --auto-play true
+python play.py --agent llm --llm_model openai/gpt-4.1 --auto-play true
 ```
 
 ## Citations

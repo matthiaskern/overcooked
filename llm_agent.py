@@ -5,7 +5,7 @@ from environment.items import Delivery, Food, Knife, Plate
 
 
 class BaseLLMWrapper:
-    def __init__(self, model="openai/gpt-4o", memory_limit=10):
+    def __init__(self, model="openai/gpt-4.1", memory_limit=10):
         self.model = model
         self.planner_memory = deque(maxlen=memory_limit)
         self.executor_memory = deque(maxlen=memory_limit)

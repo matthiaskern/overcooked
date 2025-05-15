@@ -255,7 +255,7 @@ if __name__ == "__main__":
         "--llm_model",
         type=str,
         default=None,
-        help='LLM model to use (e.g. "openai/gpt-4o")',
+        help='LLM model to use (e.g. "openai/gpt-4.1")',
     )
     parser.add_argument(
         "--auto-play",
