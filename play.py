@@ -27,7 +27,7 @@ class Player:
         "step penalty": -0.1
     }
 
-    def __init__(self, grid_dim, task, map_type, mode, debug, agent='human', llm_model=None, auto_play=False):
+    def __init__(self, grid_dim, task, map_type, mode, debug, agent='human', llm_model=None, auto_play=False, horizon_length=3):
         self.env_params = {
             'grid_dim': grid_dim,
             'task': TASKLIST[task],
@@ -56,7 +56,8 @@ class Player:
                 action_space=self.env.action_spaces['ai'],
                 inference_only=True,
                 llm_model=llm_model,
-                environment=self.env
+                environment=self.env,
+                horizon_length=horizon_length
             )
             if debug:
                 print(f"LLM agent configured with grid size: {grid_dim} and task: {TASKLIST[task]}")
@@ -100,7 +101,7 @@ class Player:
             obs = new_obs
             row = [obs['human']]
             self.step += 1
-
+            
             self.print_state_debug()
 
             prev_pos = (self.env.agent[1].x, self.env.agent[1].y)
@@ -130,6 +131,7 @@ class Player:
                 print(f"[STEP RESULT] primitive actions: [{action['human']}, {action['ai']}] | Rewards: H={reward['human']} AI={reward['ai']} | Done: {done['__all__']}")
                 if not moved:
                     print("[WARNING] AI DID NOT MOVE!")
+                    print("STEP COUNT: "  + str(self.step))
 
             self.agent.last_result = f"Executed: {input_ai[0]}, {'Success' if moved else 'Failed to move'}"
 
@@ -163,6 +165,7 @@ if __name__ == '__main__':
     parser.add_argument('--agent', type=str, default='human', help='Type of agent, e.g. (human|llm)')
     parser.add_argument('--llm_model', type=str, default=None, help='LLM model to use (e.g. "openai/gpt-4o")')
     parser.add_argument('--auto-play', type=bool, default=False, help='Keep the human stationary')
+    parser.add_argument('--horizon_length', type=int, default=3, help='Set the planning horizon length')
 
     params = vars(parser.parse_args())
 

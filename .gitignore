@@ -112,3 +112,5 @@ experiments/
 runs/
 wandb/
 .idea/
+
+output.csv
