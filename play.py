@@ -37,6 +37,7 @@ class Player:
         llm_model=None,
         stationary_human=False,
         random_human=False,
+        horizon_length=3
     ):
         self.env_params = {
             "grid_dim": grid_dim,
@@ -68,6 +69,7 @@ class Player:
                 inference_only=True,
                 llm_model=llm_model,
                 environment=self.env,
+                horizon_length=horizon_length
             )
             if debug:
                 print(
@@ -138,7 +140,7 @@ class Player:
             obs = new_obs
             row = [obs["human"]]
             self.step += 1
-
+            
             self.print_state_debug()
 
             prev_pos = (self.env.agent[1].x, self.env.agent[1].y)
@@ -199,7 +201,7 @@ class Player:
                 )
                 if not ai_moved:
                     print("[WARNING] AI DID NOT MOVE!")
-                if self.random and not human_moved:
+                if self.random_human and not human_moved:
                     print("[WARNING] RANDOM HUMAN DID NOT MOVE!")
 
             if hasattr(self.agent, "last_result"):
@@ -268,6 +270,11 @@ if __name__ == "__main__":
         "--random-human",
         action="store_true",
         help="Replace human player with a random agent",
+    )
+    parser.add_argument(
+        '--horizon_length',
+        type=int, default=3,
+        help='Set the planning horizon length'
     )
 
     params = vars(parser.parse_args())
