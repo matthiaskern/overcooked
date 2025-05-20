@@ -2,14 +2,15 @@ import re
 import litellm
 from collections import deque
 from environment.items import Delivery, Food, Knife, Plate
-
+from environment.Overcooked import ITEMNAME
 
 class BaseLLMWrapper:
-    def __init__(self, model="openai/gpt-4.1", memory_limit=10):
+    def __init__(self, model="openai/gpt-4.1", memory_limit=10, horizon_length=3):
         self.model = model
         self.planner_memory = deque(maxlen=memory_limit)
         self.executor_memory = deque(maxlen=memory_limit)
         self.plan = None
+        self.horizon_length = horizon_length
 
     def call(self, messages):
         try:
@@ -49,6 +50,7 @@ class BaseLLMWrapper:
             "You are a planner for Overcooked.\n\n"
             f"Task: {task}\n\n"
             "Generate a high-level plan in steps.\n\n"
+            f"- Plan for approximately {self.horizon_length} key steps ahead.\n"
             "NOTE:\n"
             "- To pick up, chop, serve, or interact with any item — MOVE into the item's direction.\n"
             "- The [q] action does nothing in this game.\n"
@@ -56,9 +58,11 @@ class BaseLLMWrapper:
             "- To pick up items at (row,0), you must stand at (row,1) and interact LEFT.\n"
             "- Always stay within the grid and avoid stepping into walls.\n"
             "- You cannot move into another agent's tile.\n"
-            "- You should cut the tomato until its chopped. Do not move until its ready and chopped."
+            "- Chopping requires multiple interactions: You must stay next to the knife and move into it repeatedly until the food is chopped."
+            "- DO NOT leave the knife or touch anything else until the food is chopped (usually 3 interactions)."
             "- You must PICK UP the plated tomato before you serve it!"
-            
+            "- Once the food is plated, PICK IT UP BY INTERACTING WITH IT, then move to the delivery counter with the plated food"
+            "- Please dont forget to PICK UP necessary items!"
         )
         self.plan = self.call([{"role": "user", "content": prompt}])
         self.planner_memory.append(self.plan)
@@ -119,7 +123,7 @@ class BaseLLMWrapper:
     INSTRUCTIONS:
 
     - Your immediate goal is one of: [get ingredient, chop ingredient, pick plate, plate food, deliver dish].
-    - Construct a ROUTE: list of (row, col) steps needed to reach an tile next to the target (not directly on the target if it's an item).
+    - Construct a ROUTE of exactly {self.horizon_length} steps: list of (row, col) steps needed to reach an tile next to the target (not directly on the target if it's an item).
 
     IMPORTANT:
     - [w]: Move up or perform an action on the tile above
@@ -176,24 +180,50 @@ class BaseLLMWrapper:
         return "Unknown item"
 
     def _describe_env(self, env):
-        parts = []
+        description = []
+
+        # --- Agent states ---
+        description.append("Agents:")
         for i, agent in enumerate(env.agent):
-            agent_descr = "Human" if i == 0 else "Agent"
-            parts.append(f"{agent_descr} at ({agent.x}, {agent.y}) holding: {self._describe_holding(agent)}")
+            role = "Human" if i == 0 else "AI"
+            holding = self._describe_holding(agent)
+            description.append(f"{role} at ({agent.x}, {agent.y}) holding: {holding}")
+
+        # --- Full grid view ---
+        description.append("\nMap Grid (x rows, y cols):")
+        xlen, ylen = env.xlen, env.ylen
+        grid = [["" for _ in range(ylen)] for _ in range(xlen)]
+
+        # Populate base layer from env.map
+        for x in range(xlen):
+            for y in range(ylen):
+                tile_idx = env.map[x][y]
+                tile_type = ITEMNAME[tile_idx]
+                grid[x][y] = tile_type.upper() if tile_type == "counter" else tile_type.capitalize()
+
+        # Override with item info
         for item in env.itemList:
-            if isinstance(item, Food):
-                status = f"Chopped: {item.chopped} ({item.cur_chopped_times}/{item.required_chopped_times})"
-            elif isinstance(item, Plate):
-                contents = ", ".join(f.rawName for f in item.containing) if item.containing else "Empty"
-                status = f"Contains: {contents}"
-            elif isinstance(item, Knife):
-                status = "Cutting Board / Knife"
-            elif isinstance(item, Delivery):
-                status = "Delivery Counter"
-            else:
-                status = "N/A"
-            parts.append(f"{item.rawName} at ({item.x}, {item.y}) - {status}")
-        return "\n".join(parts)
+            label = item.rawName.capitalize()
+            if isinstance(item, Food) and item.chopped:
+                label += " (chopped)"
+            elif isinstance(item, Plate) and item.containing:
+                contents = ", ".join(f.rawName for f in item.containing)
+                label = f"Plate ({contents})"
+            grid[item.x][item.y] = label
+
+        # Override with agents
+        for i, agent in enumerate(env.agent):
+            role = "Human" if i == 0 else f"AI{i}"
+            grid[agent.x][agent.y] = role
+
+        for x in range(xlen):
+            row = []
+            for y in range(ylen):
+                row.append(f"[{x},{y}] {grid[x][y]:<18}")
+            description.append(" ".join(row))
+
+        return "\n".join(description)
+
 
 
 
@@ -346,3 +376,4 @@ class BaseLLMWrapper:
     Suggestion: [What would be a better plan or correction if something is wrong?]
     """
         return self.call([{"role": "user", "content": prompt}])
+
