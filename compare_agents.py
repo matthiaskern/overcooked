@@ -99,6 +99,7 @@ def compare_configurations(configurations, trials=3, **params):
             'Configuration': result['config_name'],
             'AI Agent': result['ai_agent'],
             'Human Agent': result['human_agent'],
+            'Horizon Length': params.get('horizon_length', 3),
             'Completion Rate': f"{result['completion_rate']*100:.1f}%",
             'Avg Steps': f"{result['avg_steps']:.1f}",
         })
@@ -106,10 +107,11 @@ def compare_configurations(configurations, trials=3, **params):
     comparison_df = pd.DataFrame(comparison_data)
 
     config_list = '_'.join(sorted(configurations.keys()))
-    summary_filename = f"agent_comparison_{config_list}_{task_name}_{model_name}_{timestamp}.csv"
+    horizon_info = f"h{params.get('horizon_length', 3)}"
+    summary_filename = f"agent_comparison_{config_list}_{task_name}_{model_name}_{horizon_info}_{timestamp}.csv"
     comparison_df.to_csv(summary_filename, index=False)
 
-    print(f"\n===== FINAL COMPARISON =====")
+    print(f"\n===== FINAL COMPARISON (Horizon Length: {params.get('horizon_length', 3)}) =====")
     print(f"Summary saved to: {summary_filename}")
     print(comparison_df.to_string(index=False))
 
@@ -123,6 +125,7 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default="vector", help='The type of observation (vector/image)')
     parser.add_argument('--debug', action='store_true', help='Whether to print debug information and render')
     parser.add_argument('--llm_model', type=str, default="openai/gpt-4.1", help='LLM model to use')
+    parser.add_argument('--horizon_lengths', type=int, nargs='+', default=[3], help='Set the planning horizon lengths to compare')
     parser.add_argument('--trials', type=int, default=3, help='Number of trials per configuration')
     parser.add_argument('--configs', type=str, nargs='+', default=['llm_vs_stationary', 'llm_vs_random'],
                       help='Configurations to compare')
@@ -145,22 +148,39 @@ if __name__ == '__main__':
         print("Error: No valid configurations specified!")
         exit(1)
 
-    base_params = {
-        'grid_dim': args.grid_dim,
-        'task': args.task,
-        'map_type': args.map_type,
-        'mode': args.mode,
-        'debug': args.debug,
-        'llm_model': args.llm_model
-    }
+    all_results = []
+    all_comparisons = []
 
-    print(f"Comparing {len(configurations_to_run)} configurations with {args.trials} trials each:")
-    for config_name, (ai_agent, human_agent) in configurations_to_run.items():
-        print(f"  - {config_name}: AI={ai_agent}, Human={human_agent}")
-    print(f"Task: {TASKLIST[args.task]}")
+    for horizon_length in args.horizon_lengths:
+        base_params = {
+            'grid_dim': args.grid_dim,
+            'task': args.task,
+            'map_type': args.map_type,
+            'mode': args.mode,
+            'debug': args.debug,
+            'llm_model': args.llm_model,
+            'horizon_length': horizon_length
+        }
 
-    results, comparison = compare_configurations(
-        configurations=configurations_to_run,
-        trials=args.trials,
-        **base_params
-    )
+        print(f"\n===== RUNNING WITH HORIZON LENGTH {horizon_length} =====")
+        print(f"Comparing {len(configurations_to_run)} configurations with {args.trials} trials each:")
+        for config_name, (ai_agent, human_agent) in configurations_to_run.items():
+            print(f"  - {config_name}: AI={ai_agent}, Human={human_agent}")
+        print(f"Task: {TASKLIST[args.task]}")
+
+        results, comparison = compare_configurations(
+            configurations=configurations_to_run,
+            trials=args.trials,
+            **base_params
+        )
+
+        all_results.append(results)
+        all_comparisons.append(comparison)
+
+    if len(args.horizon_lengths) > 1:
+        print("\n===== COMBINED RESULTS ACROSS ALL HORIZON LENGTHS =====")
+        combined_df = pd.concat(all_comparisons)
+        combined_filename = f"agent_comparison_combined_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        combined_df.to_csv(combined_filename, index=False)
+        print(f"Combined summary saved to: {combined_filename}")
+        print(combined_df.to_string(index=False))
