@@ -272,7 +272,7 @@ if __name__ == "__main__":
         help="Replace human player with a random agent",
     )
     parser.add_argument(
-        '--horizon_length',
+        '--horizon-length',
         type=int, default=3,
         help='Set the planning horizon length'
     )

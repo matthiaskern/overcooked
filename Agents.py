@@ -6,6 +6,7 @@ from ray.rllib.utils.annotations import override
 from llm_agent import BaseLLMWrapper
 from environment.items import Food, Plate, Knife, Delivery
 from environment.Overcooked import ITEMNAME
+import litellm
 import re
 
 class AlwaysStationaryRLM(RLModule):
