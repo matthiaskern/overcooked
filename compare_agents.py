@@ -12,12 +12,19 @@ def run_with_configuration(config_name, ai_agent, human_agent, params, output_fi
     if human_agent == 'stationary':
         player_params['stationary_human'] = True
         player_params['random_human'] = False
+        player_params['llm_human'] = False
     elif human_agent == 'random':
         player_params['stationary_human'] = False
         player_params['random_human'] = True
+        player_params['llm_human'] = False
+    elif human_agent == 'llm':
+        player_params['stationary_human'] = False
+        player_params['random_human'] = False
+        player_params['llm_human'] = True
     else:
         player_params['stationary_human'] = False
         player_params['random_human'] = False
+        player_params['llm_human'] = False
 
     print(f"\n===== Running {config_name} =====")
     print(f"AI Agent: {ai_agent}, Human Agent: {human_agent}")
@@ -135,6 +142,7 @@ if __name__ == '__main__':
     all_configurations = {
         'llm_vs_stationary': ('llm', 'stationary'),
         'llm_vs_random': ('llm', 'random'),
+        'llm_vs_llm': ('llm', 'llm'),
     }
 
     configurations_to_run = {}

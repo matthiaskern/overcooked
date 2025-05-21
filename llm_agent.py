@@ -100,7 +100,7 @@ class BaseLLMWrapper:
 
             self.prev_holding = curr
 
-            prompt = f"""You are the AI agent in Overcooked. Task: {task}
+            prompt = f"""You are the AI agent #{agent_idx} in Overcooked. Task: {task}
 
     Your position: ({agent.x}, {agent.y})
     Holding: {holding}
@@ -185,7 +185,7 @@ class BaseLLMWrapper:
         # --- Agent states ---
         description.append("Agents:")
         for i, agent in enumerate(env.agent):
-            role = "Human" if i == 0 else "AI"
+            role = "Agent1" if i == 0 else "Agent2"
             holding = self._describe_holding(agent)
             description.append(f"{role} at ({agent.x}, {agent.y}) holding: {holding}")
 
@@ -213,7 +213,7 @@ class BaseLLMWrapper:
 
         # Override with agents
         for i, agent in enumerate(env.agent):
-            role = "Human" if i == 0 else f"AI{i}"
+            role = f"Agent{i}"
             grid[agent.x][agent.y] = role
 
         for x in range(xlen):
@@ -258,8 +258,7 @@ class BaseLLMWrapper:
                 grid[y][x] = "Counter"
 
         for idx, agent in enumerate(env.agent):
-            agent_descr = "Human" if idx == 0 else "Agent"
-            grid[agent.y][agent.x] = f"{agent_descr}{idx}"
+            grid[agent.y][agent.x] = f"Agent{idx}"
 
         for y in range(height):
             for x in range(width):
@@ -292,7 +291,7 @@ class BaseLLMWrapper:
                 what = "empty space"
                 for i, other_agent in enumerate(env.agent):
                     if other_agent.x == new_col and other_agent.y == new_row:
-                        what = f"Agent #{i} (Human if 0, AI if 1)"
+                        what = f"Agent #{i}"
                         break
                 else:
                     for item in env.itemList:

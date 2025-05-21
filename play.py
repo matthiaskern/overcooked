@@ -37,7 +37,8 @@ class Player:
         llm_model=None,
         stationary_human=False,
         random_human=False,
-        horizon_length=3
+        llm_human=False,
+        horizon_length=3,
     ):
         self.env_params = {
             "grid_dim": grid_dim,
@@ -49,7 +50,6 @@ class Player:
         }
         self.env = Overcooked_multi(**self.env_params)
 
-        # Initialize AI agent
         if agent == "stationary":
             self.agent = AlwaysStationaryRLM(
                 observation_space=self.env.observation_spaces["ai"],
@@ -69,18 +69,13 @@ class Player:
                 inference_only=True,
                 llm_model=llm_model,
                 environment=self.env,
-                horizon_length=horizon_length
+                horizon_length=horizon_length,
             )
-            if debug:
-                print(
-                    f"LLM agent configured with grid size: {grid_dim} and task: {TASKLIST[task]}"
-                )
         elif agent == "human":
             self.agent = "human"
         else:
             raise NotImplementedError(f"{agent} is unknown")
 
-        # Initialize human agent (real or random)
         self.random_human = random_human
         if random_human:
             self.human_agent = RandomRLM(
@@ -88,8 +83,17 @@ class Player:
                 action_space=self.env.action_spaces["human"],
                 inference_only=True,
             )
-            if debug:
-                print("Human player replaced with Random Agent")
+            print("Human player replaced with Random Agent")
+        elif llm_human:
+            self.human_agent = LLMAgent(
+                observation_space=self.env.observation_spaces["human"],
+                action_space=self.env.action_spaces["human"],
+                inference_only=True,
+                llm_model=llm_model,
+                environment=self.env,
+                horizon_length=horizon_length,
+            )
+            print("Human player replaced with LLM Agent")
 
         self.rewards = 0
         self.discount = 1
@@ -140,15 +144,13 @@ class Player:
             obs = new_obs
             row = [obs["human"]]
             self.step += 1
-            
+
             self.print_state_debug()
 
             prev_pos = (self.env.agent[1].x, self.env.agent[1].y)
             prev_human_pos = (self.env.agent[0].x, self.env.agent[0].y)
 
-            # Get human action (real human or random random agent)
-            if self.random_human:
-                # Use random agent for human
+            if self.human_agent:
                 input_human_action = self.human_agent._forward_inference(
                     {"obs": [obs["human"]]}
                 )["actions"]
@@ -272,9 +274,7 @@ if __name__ == "__main__":
         help="Replace human player with a random agent",
     )
     parser.add_argument(
-        '--horizon-length',
-        type=int, default=3,
-        help='Set the planning horizon length'
+        "--horizon-length", type=int, default=3, help="Set the planning horizon length"
     )
 
     params = vars(parser.parse_args())
