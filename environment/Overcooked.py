@@ -5,6 +5,8 @@ from .items import Tomato, Lettuce, Onion, Plate, Knife, Delivery, Agent, Food
 import copy
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from collections import Counter
+import imageio
+import os 
 
 DIRECTION = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 ITEMNAME = ["space", "counter", "agent", "tomato", "lettuce", "plate", "knife", "delivery", "onion"]
@@ -47,6 +49,9 @@ class Overcooked_multi(MultiAgentEnv):
         self.observation_spaces = {agent: spaces.Box(low=0, high=1, shape=(len(self._get_obs()[agent]),), dtype=np.float64) for agent in self.agents}
 
         self.game = Game(self)
+        frame = self.game.get_image_obs()
+        #imageio.imwrite(f"step_{self.step_count}.png", frame)
+        imageio.imwrite("step.png", frame)
 
     def _initialize_map(self):
         if self.xlen == 3 and self.ylen == 3:
@@ -107,7 +112,7 @@ class Overcooked_multi(MultiAgentEnv):
                         [1, 4, 1, 1, 1]] 
             elif self.mapType == "C":
                 map =  [[1, 1, 1, 5, 1],
-                        [6, 2, 1, 2, 1],
+                        [6, 2, 0, 2, 1],
                         [3, 0, 5, 0, 6],
                         [7, 0, 0, 0, 1],
                         [1, 1, 1, 1, 1]] 
@@ -126,7 +131,7 @@ class Overcooked_multi(MultiAgentEnv):
                         [1, 1, 1, 1, 1]]  
             elif self.mapType == "C":
                 map =  [[1, 1, 1, 5, 1],
-                        [6, 2, 1, 2, 1],
+                        [6, 2, 0, 2, 1],
                         [3, 0, 5, 0, 6],
                         [7, 2, 0, 0, 1],
                         [1, 1, 1, 1, 1]] 
@@ -146,7 +151,7 @@ class Overcooked_multi(MultiAgentEnv):
                         [3, 0, 5, 2, 6]]  
             elif self.mapType == "C":
                 map =  [[1, 1, 1, 5, 1],
-                        [6, 2, 1, 2, 1],
+                        [6, 2, 0, 2, 1],
                         [3, 0, 5, 0, 6],
                         [7, 0, 0, 0, 1],
                         [1, 1, 1, 1, 1]] 
@@ -165,7 +170,7 @@ class Overcooked_multi(MultiAgentEnv):
                         [1, 1, 1, 1, 1]]  
             elif self.mapType == "C":
                 map =  [[1, 1, 1, 5, 1],
-                        [6, 2, 1, 2, 1],
+                        [6, 2, 0, 2, 1],
                         [3, 0, 5, 0, 6],
                         [7, 2, 0, 0, 1],
                         [1, 1, 1, 1, 1]] 
@@ -481,7 +486,7 @@ class Overcooked_multi(MultiAgentEnv):
                                     [1, 1, 1, 1, 1]]
                 elif self.mapType == "C":
                     agent.pomap =  [[1, 1, 1, 1, 1],
-                                    [1, 0, 1, 0, 1],
+                                    [1, 0, 0, 0, 1],
                                     [1, 0, 1, 0, 1],
                                     [1, 0, 0, 0, 1],
                                     [1, 1, 1, 1, 1]]
@@ -498,7 +503,7 @@ class Overcooked_multi(MultiAgentEnv):
                                     [1, 0, 1, 0, 1]]
                 elif self.mapType == "C":
                     agent.pomap =  [[1, 1, 1, 1, 1],
-                                    [1, 0, 1, 0, 1],
+                                    [1, 0, 0, 0, 1],
                                     [1, 0, 1, 0, 1],
                                     [1, 0, 0, 0, 1],
                                     [1, 1, 1, 1, 1]]
@@ -696,11 +701,15 @@ class Overcooked_multi(MultiAgentEnv):
         terminate : list
         info : dictionary
         """
-
+        
         action = [action['human'], action['ai']] # some ugly hack to make the environment work with rllib.
-
+        previous_filename = f"step_{self.step_count}.png"
         self.step_count += 1
-
+        frame = self.game.get_image_obs()
+        imageio.imwrite(f"step.png", frame)
+        #print(f"Trying to delete: {previous_filename}")
+        #if os.path.exists(previous_filename):
+        #    os.remove(previous_filename)
         # Executing any action incurs a step penalty.
         # If the step count reaches 24, mark done as True and reset the counter.
         self.reward = self.rewardList["step penalty"]
@@ -940,7 +949,6 @@ class Overcooked_multi(MultiAgentEnv):
         infos = {agent: info for agent in self.agents}
 
         truncated =  False
-
         return self._get_obs(), rewards, terminateds, {'__all__': truncated}, infos
 
     def render(self, mode='human'):

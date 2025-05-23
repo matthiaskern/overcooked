@@ -3,6 +3,7 @@ import copy
 from environment.Overcooked import Overcooked_multi
 from Agents import *
 import pandas as pd
+import imageio
 
 TASKLIST = [
     "tomato salad",
@@ -75,6 +76,15 @@ class Player:
                 print(
                     f"LLM agent configured with grid size: {grid_dim} and task: {TASKLIST[task]}"
                 )
+        elif agent == "multimodal":
+            self.agent = MultiModalAgent(
+                observation_space=self.env.observation_spaces["ai"],
+                action_space=self.env.action_spaces["ai"],
+                inference_only=True,
+                llm_model=llm_model,
+                environment=self.env,
+                horizon_length=horizon_length
+            )
         elif agent == "human":
             self.agent = "human"
         else:
@@ -173,6 +183,7 @@ class Player:
 
             # Get AI agent action
             input_ai = self.agent._forward_inference({"obs": [obs["ai"]]})["actions"]
+            print("AI Action was: " + str(input_ai))
             input_ai = [
                 list(self.ACTION_MAPPING.keys())[
                     list(self.ACTION_MAPPING.values()).index(input_ai[0])
@@ -194,7 +205,7 @@ class Player:
             new_human_pos = (self.env.agent[0].x, self.env.agent[0].y)
             ai_moved = new_pos != prev_pos
             human_moved = new_human_pos != prev_human_pos
-
+            print("AI Pos is: " + str(new_pos))
             if self.debug:
                 print(
                     f"[STEP RESULT] actions: [H:{input_human[0]}, AI:{input_ai[0]}] | Rewards: H={reward['human']} AI={reward['ai']} | Done: {done['__all__']}"
