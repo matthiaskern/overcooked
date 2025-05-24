@@ -163,15 +163,51 @@ export ANTHROPIC_API_KEY=your_api_key_here
 export DEEPSEEK_API_KEY=your_api_key_here
 ```
 
-3. Co-play with the LLM agent:
-```
+3. Co-play with AI agents:
+
+### Agent Types
+- `human`: Interactive human player (default)
+- `llm`: LLM-based agent using text observations
+- `multimodal`: LLM-based agent using visual observations
+- `random`: Random action agent
+- `stationary`: Stationary agent (no movement)
+
+### Human Player Types
+- `interactive`: Real human input (default)
+- `stationary`: Stationary human (no movement)
+- `random`: Random action human
+- `llm`: LLM-based human player
+- `multimodal`: Multimodal LLM-based human player
+
+### Examples
+```bash
 # Play with LLM agent as teammate
 python play.py --agent llm --llm_model openai/gpt-4.1
+
+# LLM vs stationary human
+python play.py --agent llm --human stationary --llm_model openai/gpt-4.1
+
+# Multimodal agent vs random human
+python play.py --agent multimodal --human random --llm_model openai/gpt-4.1
+
+# LLM vs LLM
+python play.py --agent llm --human llm --llm_model openai/gpt-4.1
+
+# Multimodal vs Multimodal
+python play.py --agent multimodal --human multimodal --llm_model openai/gpt-4.1
 ```
 
-```
-# Let the LLM agent play
-python play.py --agent llm --llm_model openai/gpt-4.1 --stationary-human true
+### Agent Comparison
+Compare different agent configurations:
+```bash
+# Compare LLM vs stationary and multimodal vs random
+python compare_agents.py --configs llm_vs_stationary multimodal_vs_random --llm_model openai/gpt-4.1 --trials 3
+
+# Compare multimodal vs multimodal
+python compare_agents.py --configs multimodal_vs_multimodal --llm_model openai/gpt-4.1 --trials 5 --task 6
+
+# Test different horizon lengths
+python compare_agents.py --configs llm_vs_stationary --horizon_lengths 3 5 7 --trials 3
 ```
 
 ## Citations
