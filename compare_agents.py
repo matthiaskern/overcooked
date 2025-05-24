@@ -8,23 +8,7 @@ from play import Player, TASKLIST
 def run_with_configuration(config_name, ai_agent, human_agent, params, output_file=None, max_steps=300):
     player_params = copy.deepcopy(params)
     player_params['agent'] = ai_agent
-
-    if human_agent == 'stationary':
-        player_params['stationary_human'] = True
-        player_params['random_human'] = False
-        player_params['llm_human'] = False
-    elif human_agent == 'random':
-        player_params['stationary_human'] = False
-        player_params['random_human'] = True
-        player_params['llm_human'] = False
-    elif human_agent == 'llm':
-        player_params['stationary_human'] = False
-        player_params['random_human'] = False
-        player_params['llm_human'] = True
-    else:
-        player_params['stationary_human'] = False
-        player_params['random_human'] = False
-        player_params['llm_human'] = False
+    player_params['human'] = human_agent
 
     print(f"\n===== Running {config_name} =====")
     print(f"AI Agent: {ai_agent}, Human Agent: {human_agent}")
@@ -143,6 +127,10 @@ if __name__ == '__main__':
         'llm_vs_stationary': ('llm', 'stationary'),
         'llm_vs_random': ('llm', 'random'),
         'llm_vs_llm': ('llm', 'llm'),
+        'multimodal_vs_stationary': ('multimodal', 'stationary'),
+        'multimodal_vs_random': ('multimodal', 'random'),
+        'multimodal_vs_llm': ('multimodal', 'llm'),
+        'multimodal_vs_multimodal': ('multimodal', 'multimodal'),
     }
 
     configurations_to_run = {}

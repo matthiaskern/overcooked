@@ -36,9 +36,7 @@ class Player:
         debug,
         agent="human",
         llm_model=None,
-        stationary_human=False,
-        random_human=False,
-        llm_human=False,
+        human="interactive",
         horizon_length=3,
     ):
         self.env_params = {
@@ -86,15 +84,15 @@ class Player:
         else:
             raise NotImplementedError(f"{agent} is unknown")
 
-        self.random_human = random_human
-        if random_human:
+        self.human = human
+        if human == "random":
             self.human_agent = RandomRLM(
                 observation_space=self.env.observation_spaces["human"],
                 action_space=self.env.action_spaces["human"],
                 inference_only=True,
             )
             print("Human player replaced with Random Agent")
-        elif llm_human:
+        elif human == "llm":
             self.human_agent = LLMAgent(
                 observation_space=self.env.observation_spaces["human"],
                 action_space=self.env.action_spaces["human"],
@@ -104,11 +102,29 @@ class Player:
                 horizon_length=horizon_length,
             )
             print("Human player replaced with LLM Agent")
+        elif human == "multimodal":
+            self.human_agent = MultiModalAgent(
+                observation_space=self.env.observation_spaces["human"],
+                action_space=self.env.action_spaces["human"],
+                inference_only=True,
+                llm_model=llm_model,
+                environment=self.env,
+                horizon_length=horizon_length
+            )
+            print("Human player replaced with Multimodal Agent")
+        elif human == "stationary":
+            self.human_agent = AlwaysStationaryRLM(
+                observation_space=self.env.observation_spaces["human"],
+                action_space=self.env.action_spaces["human"],
+                inference_only=True,
+            )
+            print("Human player replaced with Stationary Agent")
+        else:
+            self.human_agent = None
 
         self.rewards = 0
         self.discount = 1
         self.step = 0
-        self.stationary_human = stationary_human
         self.debug = debug
 
     def print_state_debug(self):
@@ -170,14 +186,10 @@ class Player:
                     ]
                 ]
                 if self.debug:
-                    print(f"Random Human Action: {input_human[0]}")
+                    print(f"Human Agent Action: {input_human[0]}")
             else:
-                # Use real human input or stationary human
-                input_human = (
-                    ["q"]
-                    if self.stationary_human
-                    else input("Input Human: ").strip().split(" ")
-                )
+                # Use real human input
+                input_human = input("Input Human: ").strip().split(" ")
 
             if input_human == ["p"]:
                 self.save_data(data)
@@ -213,9 +225,9 @@ class Player:
                     f"[STEP RESULT] actions: [H:{input_human[0]}, AI:{input_ai[0]}] | Rewards: H={reward['human']} AI={reward['ai']} | Done: {done['__all__']}"
                 )
                 if not ai_moved:
-                    print("[WARNING] AI DID NOT MOVE!")
-                if self.random_human and not human_moved:
-                    print("[WARNING] RANDOM HUMAN DID NOT MOVE!")
+                    print("[WARNING] AI AGENT DID NOT MOVE!")
+                if self.human_agent and not human_moved:
+                    print("[WARNING] HUMAN AGENT DID NOT MOVE!")
 
             if hasattr(self.agent, "last_result"):
                 self.agent.last_result = f"Executed: {input_ai[0]}, {'Success' if ai_moved else 'Failed to move'}"
@@ -274,15 +286,10 @@ if __name__ == "__main__":
         help='LLM model to use (e.g. "openai/gpt-4.1")',
     )
     parser.add_argument(
-        "--stationary-human",
-        type=bool,
-        default=False,
-        help="Keep the human stationary (no movement)",
-    )
-    parser.add_argument(
-        "--random-human",
-        action="store_true",
-        help="Replace human player with a random agent",
+        "--human",
+        type=str,
+        default="interactive",
+        help="Type of human player (interactive|stationary|random|llm|multimodal)",
     )
     parser.add_argument(
         "--horizon-length", type=int, default=3, help="Set the planning horizon length"
