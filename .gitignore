@@ -114,3 +114,5 @@ wandb/
 .idea/
 
 output.csv
+
+*.png

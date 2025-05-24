@@ -3,6 +3,8 @@ import litellm
 from collections import deque
 from environment.items import Delivery, Food, Knife, Plate
 from environment.Overcooked import ITEMNAME
+import base64
+import os 
 
 class BaseLLMWrapper:
     def __init__(self, model="openai/gpt-4.1", memory_limit=10, horizon_length=3):
@@ -11,6 +13,8 @@ class BaseLLMWrapper:
         self.executor_memory = deque(maxlen=memory_limit)
         self.plan = None
         self.horizon_length = horizon_length
+        self.image_step_counter = 1
+
 
     def call(self, messages):
         try:
@@ -63,8 +67,35 @@ class BaseLLMWrapper:
             "- You must PICK UP the plated tomato before you serve it!"
             "- Once the food is plated, PICK IT UP BY INTERACTING WITH IT, then move to the delivery counter with the plated food"
             "- Please dont forget to PICK UP necessary items!"
+            "- Please bring the plated food to DELIVERY, but only after its on plate!"
+            "- After plating food, interact with DELIVERy via moving towards it"
         )
-        self.plan = self.call([{"role": "user", "content": prompt}])
+
+        image_data_url = None
+        #with open(f"step_{self.image_step_counter}.png", "rb") as image_file:
+        with open("step.png", "rb") as image_file:
+            b64_image = base64.b64encode(image_file.read()).decode("utf-8")
+            image_data_url = f"data:image/png,base64,{b64_image}"
+            print(f"IMAGE DATA: {image_data_url}")
+
+        messages = [
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": prompt
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": image_data_url
+                }
+            }
+        ]
+    }
+]
+        self.plan = self.call(messages)
         self.planner_memory.append(self.plan)
 
     def get_action(self, env, agent_idx, last_action=None, last_result=None):

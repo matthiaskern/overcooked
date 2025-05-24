@@ -4,6 +4,7 @@ from ray.rllib.core.columns import Columns
 from ray.rllib.core.rl_module.rl_module import RLModule
 from ray.rllib.utils.annotations import override
 from llm_agent import BaseLLMWrapper
+from llm_agent_multimodal import MultiModalOvercookedAgent
 from environment.items import Food, Plate, Knife, Delivery
 from environment.Overcooked import ITEMNAME
 import litellm
@@ -72,7 +73,6 @@ ACTION_MAPPING = {
     "q": 4
 }
 
-
 class LLMAgent(RLModule):
     def __init__(self, observation_space, action_space, inference_only=True, llm_model=None, environment=None, horizon_length=3):
         super().__init__()
@@ -83,6 +83,22 @@ class LLMAgent(RLModule):
 
     def _forward_inference(self, input_dict):
         action_letter = self.llm.get_action(self.env, agent_idx=1, last_action=self.last_action, last_result=self.last_result)
+        self.last_action = action_letter
+        action_index = ACTION_MAPPING.get(action_letter, 4)
+        return {"actions": [action_index]}
+
+class MultiModalAgent(RLModule):
+    def __init__(self, observation_space, action_space, inference_only=True, llm_model=None, environment=None, horizon_length=3):
+        super().__init__()
+        self.llm = MultiModalOvercookedAgent(model=llm_model, horizon_length=horizon_length)
+        self.env = environment
+        self.last_action = None
+        self.last_result = None
+
+    def _forward_inference(self, input_dict):
+        #image_path = f"step_{self.env.step_count}.png"
+        image_path = "step.png"
+        action_letter = self.llm.get_action(self.env, image_path, agent_idx=1, last_action=self.last_action, last_result=self.last_result)
         self.last_action = action_letter
         action_index = ACTION_MAPPING.get(action_letter, 4)
         return {"actions": [action_index]}
