@@ -15,6 +15,7 @@ class MultiModalOvercookedAgent:
         self.plan = None
         self.horizon_length = horizon_length
         self.image_step_counter = 0
+        self.agent_role = None
 
     def call_llm_with_full_context(self, prompt, image_path):
         with open(image_path, "rb") as img_file:
@@ -37,18 +38,20 @@ class MultiModalOvercookedAgent:
         return response.choices[0].message.content
 
     def call_llm(self, task, image_path):
+        player_type = "human player" if self.agent_role == "Human" else "robot agent"
+        
         prompt = f"""
-You are an Overcooked AI agent.
+You are an Overcooked {self.agent_role} agent.
 
 Task: {task}
 
 Based on the current game image, choose your next action.
-You are the robot agent. The human agent does nothing, you are on your own.
+You are the {player_type}. Collaborate with the other players.
 Your task is to make tomato salad, by first picking up tomato, then chopping it three times until chopped then picking the 
 chopped tomato up, and placing it to plate. Then pick up the plated tomato and bring it over to the delivery point, marked with star.
 You interact with items by moving towards them when next to it.
 You need to pick the tomato, carry it over to cutting station, then place it on cutting station, then chop it.
-You cannot move where the human already is. 
+You cannot move where another player already is. 
 You cannot move into counters.
 Only respond in this format:
 Action: [w/a/s/d]
@@ -84,6 +87,8 @@ Action: [w/a/s/d]
     def get_action(self, env, image_path, agent_idx, last_action=None, last_result=None):
         agent = env.agent[agent_idx]
         task = ", ".join(env.task) if isinstance(env.task, list) else env.task
+        
+        self.agent_role = "Human" if agent_idx == 0 else "AI"
 
         if not self.plan:
             self.update_plan(task)
@@ -95,6 +100,7 @@ Action: [w/a/s/d]
 
         holding = self._describe_holding(agent)
         state_summary = self._describe_env(env)
+        print(self.plan)
         print("STATE SUMMARY")
         print(state_summary)
         print("DEBUG")
@@ -125,7 +131,9 @@ Action: [w/a/s/d]
 
             self.prev_holding = curr
 
-            prompt = f"""You are the AI agent in Overcooked. Task: {task}
+            agent_identity = f"YOU ARE THE {self.agent_role.upper()} PLAYER!"
+            
+            prompt = f"""You are the {self.agent_role} agent in Overcooked. Task: {task}
 
 Your position: ({agent.x}, {agent.y})
 Holding: {holding}
@@ -148,11 +156,11 @@ INSTRUCTIONS:
 
 - Your immediate goal is one of: [get ingredient, chop ingredient, pick plate, plate food, deliver dish].
 - Construct a ROUTE of exactly {self.horizon_length} steps: list of (row, col) steps needed to reach an tile next to the target (not directly on the target if it's an item).
-- You will also get an image of the game state. Inspect it carefully. You are the robot. 
-- YOU ARE THE ROBOT AGENT!
-- You cannot move where the human already is.
+- You will also get an image of the game state. Inspect it carefully. You are the {self.agent_role.lower()}. 
+- {agent_identity}
+- You cannot move where onto a tile where another player already is.
 - You cannot move into counters.
-- The human agent does nothing, you are on your own.
+- Collaborate with other players as needed.
 IMPORTANT:
 - [w]: Move up or perform an action on the tile above
 - [a]: Move left or perform an action on the tile to the left
@@ -235,13 +243,17 @@ Verify: [yes/no] - [reason]
         visual_description = description_response.choices[0].message.content.strip()
         print("[Vision] What the agent sees:\n", visual_description)
 
+        agent_identity = self.agent_role.lower()
+        
         planning_prompt = (
             "You are a planner for Overcooked.\n\n"
             f"Task: {task}\n\n"
             "Observation:\n"
             f"{visual_description}\n\n"
             "Now generate a high-level plan in steps.\n\n"
-            "Human agent does nothing. You are the robot agent, you must do everything."
+            f"You are the {agent_identity} player."
+            f"The other players have the same task as you, you need to collaborate to complete the task."
+            f"You cannot communicate with the other players."
             f"- Plan for approximately {self.horizon_length} key steps ahead.\n"
             "NOTE:\n"
             "- Move toward an object to interact with it (e.g., pick up, chop, plate).\n"
