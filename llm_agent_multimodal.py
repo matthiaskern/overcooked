@@ -8,13 +8,31 @@ import os
 
 
 class MultiModalOvercookedAgent:
-    def __init__(self, model="openai/gpt-4.1", memory_limit=10, horizon_length=3):
+    def __init__(self, model="openai/gpt-4.1", memory_limit=10, horizon_length=3, agent_name="ai"):
+        self.agent_name = agent_name
         self.model = model
         self.planner_memory = deque(maxlen=memory_limit)
         self.executor_memory = deque(maxlen=memory_limit)
         self.plan = None
         self.horizon_length = horizon_length
         self.image_step_counter = 0
+        if self.agent_name == "ai":
+            partner = "human"
+        else:
+            partner = "ai"
+        self.log_file = f"{self.agent_name}.txt"
+        self.identity_text = f"You are the {self.agent_name} agent. The {partner} agent is also active — work together to complete the task."
+        print(f"IDENTITY TEXT: {self.identity_text}")
+
+    def log_interaction(self, prompt, response):
+        with open(self.log_file, "a", encoding="utf-8") as f:
+            f.write("==== PROMPT ====\n")
+            if isinstance(prompt, str):
+                f.write(prompt.strip() + "\n")
+            else:
+                f.write(str(prompt) + "\n")
+            f.write("==== RESPONSE ====\n")
+            f.write(response.strip() + "\n\n")
 
     def call_llm_with_full_context(self, prompt, image_path):
         with open(image_path, "rb") as img_file:
@@ -34,16 +52,19 @@ class MultiModalOvercookedAgent:
             max_tokens=10000,
             temperature=0.3
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        self.log_interaction(prompt, content)
+        return content
+
 
     def call_llm(self, task, image_path):
         prompt = f"""
-You are an Overcooked AI agent.
+        {self.identity_text}
 
 Task: {task}
 
 Based on the current game image, choose your next action.
-You are the robot agent. The human agent does nothing, you are on your own.
+Do not wait for the next agent to act, just proceed!
 Your task is to make tomato salad, by first picking up tomato, then chopping it three times until chopped then picking the 
 chopped tomato up, and placing it to plate. Then pick up the plated tomato and bring it over to the delivery point, marked with star.
 You interact with items by moving towards them when next to it.
@@ -94,7 +115,8 @@ Action: [w/a/s/d]
         print("[DEBUG] Current Plan:\n", self.plan)
 
         holding = self._describe_holding(agent)
-        state_summary = self._describe_env(env)
+        state_summary = self._describe_env(env, agent_idx)
+
         print("STATE SUMMARY")
         print(state_summary)
         print("DEBUG")
@@ -124,8 +146,14 @@ Action: [w/a/s/d]
                 self.executor_memory.append("Agent tried to chop without holding anything")
 
             self.prev_holding = curr
+            task_text = None
+            if self.agent_name == "human":
+                task_text = "Your task is to cut the ingredients. Let the robot do rest, including ingredient gathering."
+            elif self.agent_name == "ai":
+                task_text = "Your task is to bring the ingredients to the human and let them cut. You also deliver the food."
 
-            prompt = f"""You are the AI agent in Overcooked. Task: {task}
+            prompt = f"""{self.identity_text} Task: {task}
+Do not wait for the next agent to act, just proceed!
 
 Your position: ({agent.x}, {agent.y})
 Holding: {holding}
@@ -147,12 +175,12 @@ Memory:
 INSTRUCTIONS:
 
 - Your immediate goal is one of: [get ingredient, chop ingredient, pick plate, plate food, deliver dish].
+- If it looks like your partner is already doing one of them, do not attempt it yourself!
 - Construct a ROUTE of exactly {self.horizon_length} steps: list of (row, col) steps needed to reach an tile next to the target (not directly on the target if it's an item).
 - You will also get an image of the game state. Inspect it carefully. You are the robot. 
 - YOU ARE THE ROBOT AGENT!
 - You cannot move where the human already is.
 - You cannot move into counters.
-- The human agent does nothing, you are on your own.
 IMPORTANT:
 - [w]: Move up or perform an action on the tile above
 - [a]: Move left or perform an action on the tile to the left
@@ -236,13 +264,16 @@ Verify: [yes/no] - [reason]
         print("[Vision] What the agent sees:\n", visual_description)
 
         planning_prompt = (
-            "You are a planner for Overcooked.\n\n"
+            
+            f"{self.identity_text}"
+            "Do not wait for the next agent to act, just proceed!"
+            "If it looks like your partner is already doing something, dont do the same thing!"
             f"Task: {task}\n\n"
             "Observation:\n"
             f"{visual_description}\n\n"
             "Now generate a high-level plan in steps.\n\n"
-            "Human agent does nothing. You are the robot agent, you must do everything."
             f"- Plan for approximately {self.horizon_length} key steps ahead.\n"
+            "Plan for your OWN actions only. You cannot control the other agent, so please do not include him in the plan."
             "NOTE:\n"
             "- Move toward an object to interact with it (e.g., pick up, chop, plate).\n"
             "- [q] does nothing.\n"
@@ -282,13 +313,17 @@ Verify: [yes/no] - [reason]
             return "Empty Plate"
         return "Unknown item"
 
-    def _describe_env(self, env):
+    def _describe_env(self, env, self_idx):
         description = []
         description.append("Agents:")
         for i, agent in enumerate(env.agent):
-            role = "Human" if i == 0 else "AI"
+            if i == self_idx:
+                role = f"YOU ({self.agent_name.upper()})"
+            else:
+                role = "Partner (HUMAN)" if self.agent_name == "ai" else "Partner (AI)"
             holding = self._describe_holding(agent)
             description.append(f"{role} at ({agent.x}, {agent.y}) holding: {holding}")
+
         description.append("\nMap Grid (x rows, y cols):")
         xlen, ylen = env.xlen, env.ylen
         grid = [["" for _ in range(ylen)] for _ in range(xlen)]

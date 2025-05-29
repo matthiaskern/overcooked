@@ -77,7 +77,9 @@ class Player:
                 inference_only=True,
                 llm_model=llm_model,
                 environment=self.env,
-                horizon_length=horizon_length
+                horizon_length=horizon_length,
+                agent_name="ai",
+                agent_idx=1
             )
         elif agent == "human":
             self.agent = "human"
@@ -109,7 +111,9 @@ class Player:
                 inference_only=True,
                 llm_model=llm_model,
                 environment=self.env,
-                horizon_length=horizon_length
+                horizon_length=horizon_length,
+                agent_name="human",
+                agent_idx=0
             )
             print("Human player replaced with Multimodal Agent")
         elif human == "stationary":

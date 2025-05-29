@@ -88,17 +88,19 @@ class LLMAgent(RLModule):
         return {"actions": [action_index]}
 
 class MultiModalAgent(RLModule):
-    def __init__(self, observation_space, action_space, inference_only=True, llm_model=None, environment=None, horizon_length=3):
+    def __init__(self, observation_space, action_space, inference_only=True, llm_model=None, environment=None, horizon_length=3, agent_name="ai", agent_idx=1):
         super().__init__()
-        self.llm = MultiModalOvercookedAgent(model=llm_model, horizon_length=horizon_length)
+        self.agent_idx = agent_idx
+        self.llm = MultiModalOvercookedAgent(model=llm_model, horizon_length=horizon_length, agent_name=agent_name)
         self.env = environment
         self.last_action = None
         self.last_result = None
 
     def _forward_inference(self, input_dict):
-        #image_path = f"step_{self.env.step_count}.png"
         image_path = "step.png"
-        action_letter = self.llm.get_action(self.env, image_path, agent_idx=1, last_action=self.last_action, last_result=self.last_result)
+        action_letter = self.llm.get_action(self.env, image_path, agent_idx=self.agent_idx, last_action=self.last_action, last_result=self.last_result)
         self.last_action = action_letter
         action_index = ACTION_MAPPING.get(action_letter, 4)
         return {"actions": [action_index]}
+
+
