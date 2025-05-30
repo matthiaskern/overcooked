@@ -31,6 +31,28 @@ def run_with_configuration(config_name, ai_agent, human_agent, params, output_fi
             logger.addHandler(file_handler)
             logger.setLevel(logging.INFO)
             logger.propagate = False
+        
+        config_logger = logging.getLogger('configuration')
+        config_logger.handlers = []
+        config_handler = logging.FileHandler(log_file)
+        config_formatter = logging.Formatter('%(message)s')
+        config_handler.setFormatter(config_formatter)
+        config_logger.addHandler(config_handler)
+        config_logger.setLevel(logging.INFO)
+        config_logger.propagate = False
+        
+        config_logger.info("=== EXPERIMENT CONFIGURATION ===")
+        config_logger.info(f"AI Agent: {ai_agent}")
+        config_logger.info(f"Human Agent: {human_agent}")
+        config_logger.info(f"Task: {params['task']} ({TASKLIST[params['task']]})")
+        config_logger.info(f"Map Type: {params.get('map_type', 'A')}")
+        config_logger.info(f"Mode: {params.get('mode', 'vector')}")
+        config_logger.info(f"Grid Dimensions: {params.get('grid_dim', [5, 5])}")
+        config_logger.info(f"Horizon Length: {params.get('horizon_length', 3)}")
+        config_logger.info(f"LLM Model: {params.get('llm_model', 'N/A')}")
+        config_logger.info(f"Configuration: {config_name}")
+        config_logger.info("================================")
+        config_logger.info("")
 
     player = Player(**player_params)
     data = player.run()
