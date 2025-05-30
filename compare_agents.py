@@ -18,18 +18,19 @@ def run_with_configuration(config_name, ai_agent, human_agent, params, output_fi
         log_file = output_file.replace('.csv', '.log')
         
         multimodal_logger = logging.getLogger('multimodal_agent')
+        human_logger = logging.getLogger('human_player')
         
-        for handler in multimodal_logger.handlers[:]:
-            multimodal_logger.removeHandler(handler)
-        
-        file_handler = logging.FileHandler(log_file)
-        
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        file_handler.setFormatter(formatter)
-        
-        multimodal_logger.addHandler(file_handler)
-        multimodal_logger.setLevel(logging.INFO)
-        multimodal_logger.propagate = False
+        for logger in [multimodal_logger, human_logger]:
+            for handler in logger.handlers[:]:
+                logger.removeHandler(handler)
+            
+            file_handler = logging.FileHandler(log_file)
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(formatter)
+            
+            logger.addHandler(file_handler)
+            logger.setLevel(logging.INFO)
+            logger.propagate = False
 
     player = Player(**player_params)
     data = player.run()

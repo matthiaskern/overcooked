@@ -4,6 +4,9 @@ from environment.Overcooked import Overcooked_multi
 from Agents import *
 import pandas as pd
 import imageio
+import logging
+
+logger = logging.getLogger('human_player')
 
 TASKLIST = [
     "tomato salad",
@@ -166,6 +169,13 @@ class Player:
             ]
         ]
 
+        if (not self.human_agent):
+            task = ", ".join(self.env.task) if isinstance(self.env.task, list) else self.env.task
+            print("\n\n\n")
+            print(f"You're playing Overcooked with an AI Agent. Use WASD to navigate and interact with the game environment. \nYour task is to make a {task}.")
+            print("\n\n\n")
+
+
         while True:
             obs = new_obs
             row = [obs["human"]]
@@ -187,9 +197,11 @@ class Player:
                 ]
                 if self.debug:
                     print(f"Human Agent Action: {input_human[0]}")
+                logger.info(f"Human agent action: {input_human[0]}")
             else:
                 # Use real human input
-                input_human = input("Input Human: ").strip().split(" ")
+                input_human = input("Your next input: ").strip().split(" ")
+                logger.info(f"Human input: {input_human[0] if input_human else 'None'}")
 
             if input_human == ["p"]:
                 self.save_data(data)
@@ -197,7 +209,7 @@ class Player:
 
             # Get AI agent action
             input_ai = self.agent._forward_inference({"obs": [obs["ai"]]})["actions"]
-            print("AI Action was: " + str(input_ai))
+            # print("AI Action was: " + str(input_ai))
             input_ai = [
                 list(self.ACTION_MAPPING.keys())[
                     list(self.ACTION_MAPPING.values()).index(input_ai[0])
@@ -219,7 +231,7 @@ class Player:
             new_human_pos = (self.env.agent[0].x, self.env.agent[0].y)
             ai_moved = new_pos != prev_pos
             human_moved = new_human_pos != prev_human_pos
-            print("AI Pos is: " + str(new_pos))
+            # print("AI Pos is: " + str(new_pos))
             if self.debug:
                 print(
                     f"[STEP RESULT] actions: [H:{input_human[0]}, AI:{input_ai[0]}] | Rewards: H={reward['human']} AI={reward['ai']} | Done: {done['__all__']}"
@@ -228,6 +240,8 @@ class Player:
                     print("[WARNING] AI AGENT DID NOT MOVE!")
                 if self.human_agent and not human_moved:
                     print("[WARNING] HUMAN AGENT DID NOT MOVE!")
+            
+            logger.info(f"Human action result: {input_human[0]}, {'Success' if human_moved else 'Failed to move'}")
 
             if hasattr(self.agent, "last_result"):
                 self.agent.last_result = f"Executed: {input_ai[0]}, {'Success' if ai_moved else 'Failed to move'}"
