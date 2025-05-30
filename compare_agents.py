@@ -131,6 +131,7 @@ if __name__ == '__main__':
         'multimodal_vs_random': ('multimodal', 'random'),
         'multimodal_vs_llm': ('multimodal', 'llm'),
         'multimodal_vs_multimodal': ('multimodal', 'multimodal'),
+        'multimodal_vs_human': ('multimodal', 'human'),
     }
 
     configurations_to_run = {}
