@@ -5,6 +5,9 @@ from environment.items import Delivery, Food, Knife, Plate
 from environment.Overcooked import ITEMNAME
 import base64
 import os
+import logging
+
+logger = logging.getLogger('multimodal_agent')
 
 
 class MultiModalOvercookedAgent:
@@ -81,7 +84,7 @@ Action: [w/a/s/d]
 
     def _get_action(self, task, image_path):
         llm_output = self.call_llm(task, image_path)
-        print("LLM OUTPUT " + str(llm_output))
+        logger.info("LLM OUTPUT " + str(llm_output))
         return self.extract_action(llm_output)
 
     def get_action(self, env, image_path, agent_idx, last_action=None, last_result=None):
@@ -93,22 +96,22 @@ Action: [w/a/s/d]
         if not self.plan:
             self.update_plan(task)
             if not self.plan:
-                print("[ERROR] No plan was generated.")
+                logger.info("[ERROR] No plan was generated.")
                 self.plan = "No plan available."
 
-        print("[DEBUG] Current Plan:\n", self.plan)
+        logger.info("[DEBUG] Current Plan:\n" + str(self.plan))
 
         holding = self._describe_holding(agent)
         state_summary = self._describe_env(env)
-        print(self.plan)
-        print("STATE SUMMARY")
-        print(state_summary)
-        print("DEBUG")
+        logger.info(str(self.plan))
+        logger.info("STATE SUMMARY")
+        logger.info(str(state_summary))
+        logger.info("DEBUG")
         debug_full_state = self._describe_env_debug(env)
-        print(debug_full_state)
+        logger.info(str(debug_full_state))
         rendered_grid = self._render_grid(env)
-        print("GRID")
-        print(rendered_grid)
+        logger.info("GRID")
+        logger.info(str(rendered_grid))
         possible_moves = self._describe_possible_moves(env, agent)
         memory_text = "\n".join(self.executor_memory)
 
@@ -189,7 +192,7 @@ Verify: [yes/no] - [reason]
             route = route_match.group(1).strip() if route_match else "[]"
 
             return action_letter
-        print("[ERROR] Agent failed to generate valid move after retries. Defaulting to [q].")
+        logger.info("[ERROR] Agent failed to generate valid move after retries. Defaulting to [q].")
         return "q"
 
     def extract_action_and_verify(self, text):
@@ -205,7 +208,7 @@ Verify: [yes/no] - [reason]
         #image_path = f"step_{self.image_step_counter}.png"
         image_path = "step.png"
         if not os.path.exists(image_path):
-            print(f"[Planner ERROR] Image file not found: {image_path}")
+            logger.info(f"[Planner ERROR] Image file not found: {image_path}")
             self.plan = "No plan generated (missing image)"
             return
 
@@ -241,7 +244,7 @@ Verify: [yes/no] - [reason]
         )
 
         visual_description = description_response.choices[0].message.content.strip()
-        print("[Vision] What the agent sees:\n", visual_description)
+        logger.info("[Vision] What the agent sees:\n" + str(visual_description))
 
         agent_identity = self.agent_role.lower()
         
@@ -280,7 +283,7 @@ Verify: [yes/no] - [reason]
 
         self.plan = plan_response.choices[0].message.content.strip()
         self.planner_memory.append(self.plan)
-        print("[Planner] Generated Plan:\n", self.plan)
+        logger.info("[Planner] Generated Plan:\n" + str(self.plan))
 
 
     def _describe_holding(self, agent):

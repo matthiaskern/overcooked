@@ -3,6 +3,7 @@ import copy
 import pandas as pd
 import datetime
 import time
+import logging
 from play import Player, TASKLIST
 
 def run_with_configuration(config_name, ai_agent, human_agent, params, output_file=None, max_steps=300):
@@ -12,6 +13,23 @@ def run_with_configuration(config_name, ai_agent, human_agent, params, output_fi
 
     print(f"\n===== Running {config_name} =====")
     print(f"AI Agent: {ai_agent}, Human Agent: {human_agent}")
+
+    if output_file:
+        log_file = output_file.replace('.csv', '.log')
+        
+        multimodal_logger = logging.getLogger('multimodal_agent')
+        
+        for handler in multimodal_logger.handlers[:]:
+            multimodal_logger.removeHandler(handler)
+        
+        file_handler = logging.FileHandler(log_file)
+        
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        
+        multimodal_logger.addHandler(file_handler)
+        multimodal_logger.setLevel(logging.INFO)
+        multimodal_logger.propagate = False
 
     player = Player(**player_params)
     data = player.run()
