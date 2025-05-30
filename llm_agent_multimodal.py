@@ -32,60 +32,26 @@ class MultiModalOvercookedAgent:
             ]
         }]
 
+        logger.info("===CALLING LLM===")
+        logger.info(prompt)
+
         response = litellm.completion(
             model=self.model,
             messages=messages,
             max_tokens=10000,
             temperature=0.3
         )
-        return response.choices[0].message.content
-
-    def call_llm(self, task, image_path):
-        player_type = "human player" if self.agent_role == "Human" else "robot agent"
         
-        prompt = f"""
-You are an Overcooked {self.agent_role} agent.
 
-Task: {task}
+        result = response.choices[0].message.content
+        logger.info("===RESPONSE FROM LLM===")
+        logger.info(result)
 
-Based on the current game image, choose your next action.
-You are the {player_type}. Collaborate with the other players.
-Your task is to make tomato salad, by first picking up tomato, then chopping it three times until chopped then picking the 
-chopped tomato up, and placing it to plate. Then pick up the plated tomato and bring it over to the delivery point, marked with star.
-You interact with items by moving towards them when next to it.
-You need to pick the tomato, carry it over to cutting station, then place it on cutting station, then chop it.
-You cannot move where another player already is. 
-You cannot move into counters.
-Only respond in this format:
-Action: [w/a/s/d]
-"""
-        with open(image_path, "rb") as img_file:
-            b64_image = base64.b64encode(img_file.read()).decode("utf-8")
-
-        messages = [{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt.strip()},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_image}"}}
-            ]
-        }]
-
-        response = litellm.completion(
-            model=self.model,
-            messages=messages,
-            max_tokens=10000,
-            temperature=0.1
-        )
-        return response.choices[0].message.content
+        return result
 
     def extract_action(self, llm_output):
         match = re.search(r"Action:\s*\[?([wsadq])\]?", llm_output, re.IGNORECASE)
         return match.group(1).lower() if match else "q"
-
-    def _get_action(self, task, image_path):
-        llm_output = self.call_llm(task, image_path)
-        logger.info("LLM OUTPUT " + str(llm_output))
-        return self.extract_action(llm_output)
 
     def get_action(self, env, image_path, agent_idx, last_action=None, last_result=None):
         agent = env.agent[agent_idx]
@@ -93,11 +59,10 @@ Action: [w/a/s/d]
         
         self.agent_role = "Human" if agent_idx == 0 else "AI"
 
+        self.update_plan(task)
         if not self.plan:
-            self.update_plan(task)
-            if not self.plan:
-                logger.info("[ERROR] No plan was generated.")
-                self.plan = "No plan available."
+            logger.info("[ERROR] No plan was generated.")
+            self.plan = "No plan available."
 
         logger.info("[DEBUG] Current Plan:\n" + str(self.plan))
 
@@ -115,7 +80,6 @@ Action: [w/a/s/d]
         possible_moves = self._describe_possible_moves(env, agent)
         memory_text = "\n".join(self.executor_memory)
 
-        feedback = ""
         max_attempts = 5
         for attempt in range(max_attempts):
             moved = "Unknown"
@@ -158,7 +122,7 @@ Memory:
 INSTRUCTIONS:
 
 - Your immediate goal is one of: [get ingredient, chop ingredient, pick plate, plate food, deliver dish].
-- Construct a ROUTE of exactly {self.horizon_length} steps: list of (row, col) steps needed to reach an tile next to the target (not directly on the target if it's an item).
+- Construct a ROUTE of exactly {self.horizon_length} steps: list of (row, col) next steps needed to reach a tile next to the target (not directly on the target if it's an item).
 - You will also get an image of the game state. Inspect it carefully. You are the {self.agent_role.lower()}. 
 - {agent_identity}
 - You cannot move where onto a tile where another player already is.
@@ -173,12 +137,11 @@ IMPORTANT:
 - Remember, coords are not given in x,y but in row/col. (i.e. to navigate vertically we need to change x and when we navigate horizontally we change y)
 - If the previous action failed to move, re-evaluate and fix your decision.
 
-{feedback}
 
 Respond strictly in the following format:
-Thought: ...
-Route: ...
+Thought: I am seeing ..., my current position is X, my current goal is Y, the other player is doing X, therefore I should ...
 Plan: ...
+Route: ...
 Action: [w/a/s/d/q] - [reason]
 Verify: [yes/no] - [reason]
 """
@@ -190,6 +153,8 @@ Verify: [yes/no] - [reason]
 
             route_match = re.search(r"Route:\s*\[([^\]]*)\]", response, re.IGNORECASE)
             route = route_match.group(1).strip() if route_match else "[]"
+
+            logger.info(f"NEW ROUTE: {route}")
 
             return action_letter
         logger.info("[ERROR] Agent failed to generate valid move after retries. Defaulting to [q].")
@@ -270,9 +235,11 @@ Verify: [yes/no] - [reason]
             "role": "user",
             "content": [
                 {"type": "text", "text": planning_prompt},
-                {"type": "image_url", "image_url": {"url": image_data_url}}
             ]
         }]
+
+
+        logger.info("[Planner] Generating Plan:\n" + planning_prompt)
 
         plan_response = litellm.completion(
             model=self.model,
