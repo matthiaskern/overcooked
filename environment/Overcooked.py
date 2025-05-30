@@ -705,8 +705,6 @@ class Overcooked_multi(MultiAgentEnv):
         action = [action['human'], action['ai']] # some ugly hack to make the environment work with rllib.
         previous_filename = f"step_{self.step_count}.png"
         self.step_count += 1
-        frame = self.game.get_image_obs()
-        imageio.imwrite(f"step.png", frame)
         #print(f"Trying to delete: {previous_filename}")
         #if os.path.exists(previous_filename):
         #    os.remove(previous_filename)
@@ -947,6 +945,9 @@ class Overcooked_multi(MultiAgentEnv):
         terminateds = {"__all__": done or self.step_count >= 80}
         rewards = {agent: self.reward for agent in self.agents}
         infos = {agent: info for agent in self.agents}
+
+        frame = self.game.get_image_obs()
+        imageio.imwrite(f"step.png", frame)
 
         truncated =  False
         return self._get_obs(), rewards, terminateds, {'__all__': truncated}, infos
