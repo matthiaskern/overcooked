@@ -33,8 +33,8 @@ class MultiModalOvercookedAgent:
             ]
         }]
 
-        logger.info("===CALLING LLM===")
-        logger.info(prompt)
+        logger.info(f"[{self.agent_role}] ===CALLING LLM===")
+        logger.info(f"[{self.agent_role}] {prompt}")
 
         response = await litellm.acompletion(
             model=self.model,
@@ -45,8 +45,8 @@ class MultiModalOvercookedAgent:
         
 
         result = response.choices[0].message.content
-        logger.info("===RESPONSE FROM LLM===")
-        logger.info(result)
+        logger.info(f"[{self.agent_role}] ===RESPONSE FROM LLM===")
+        logger.info(f"[{self.agent_role}] {result}")
 
         return result
 
@@ -62,22 +62,22 @@ class MultiModalOvercookedAgent:
 
         await self.update_plan(task)
         if not self.plan:
-            logger.info("[ERROR] No plan was generated.")
+            logger.info(f"[{self.agent_role}] [ERROR] No plan was generated.")
             self.plan = "No plan available."
 
-        logger.info("[DEBUG] Current Plan:\n" + str(self.plan))
+        logger.info(f"[{self.agent_role}] [DEBUG] Current Plan:\n" + str(self.plan))
 
         holding = self._describe_holding(agent)
         state_summary = self._describe_env(env)
-        logger.info(str(self.plan))
-        logger.info("STATE SUMMARY")
-        logger.info(str(state_summary))
-        logger.info("DEBUG")
+        logger.info(f"[{self.agent_role}] Plan: {str(self.plan)}")
+        logger.info(f"[{self.agent_role}] STATE SUMMARY")
+        logger.info(f"[{self.agent_role}] {str(state_summary)}")
+        logger.info(f"[{self.agent_role}] DEBUG")
         debug_full_state = self._describe_env_debug(env)
-        logger.info(str(debug_full_state))
+        logger.info(f"[{self.agent_role}] {str(debug_full_state)}")
         rendered_grid = self._render_grid(env)
-        logger.info("GRID")
-        logger.info(str(rendered_grid))
+        logger.info(f"[{self.agent_role}] GRID")
+        logger.info(f"[{self.agent_role}] {str(rendered_grid)}")
         possible_moves = self._describe_possible_moves(env, agent)
         memory_text = "\n".join(self.executor_memory)
 
@@ -155,10 +155,10 @@ Verify: [yes/no] - [reason]
             route_match = re.search(r"Route:\s*\[([^\]]*)\]", response, re.IGNORECASE)
             route = route_match.group(1).strip() if route_match else "[]"
 
-            logger.info(f"NEW ROUTE: {route}")
+            logger.info(f"[{self.agent_role}] NEW ROUTE: {route}")
 
             return action_letter
-        logger.info("[ERROR] Agent failed to generate valid move after retries. Defaulting to [q].")
+        logger.info(f"[{self.agent_role}] [ERROR] Agent failed to generate valid move after retries. Defaulting to [q].")
         return "q"
 
     def extract_action_and_verify(self, text):
@@ -174,7 +174,7 @@ Verify: [yes/no] - [reason]
         #image_path = f"step_{self.image_step_counter}.png"
         image_path = "step.png"
         if not os.path.exists(image_path):
-            logger.info(f"[Planner ERROR] Image file not found: {image_path}")
+            logger.info(f"[{self.agent_role}] [Planner ERROR] Image file not found: {image_path}")
             self.plan = "No plan generated (missing image)"
             return
 
@@ -210,7 +210,7 @@ Verify: [yes/no] - [reason]
         )
 
         visual_description = description_response.choices[0].message.content.strip()
-        logger.info("[Vision] What the agent sees:\n" + str(visual_description))
+        logger.info(f"[{self.agent_role}] [Vision] What the agent sees:\n" + str(visual_description))
 
         agent_identity = self.agent_role.lower()
         
@@ -240,7 +240,7 @@ Verify: [yes/no] - [reason]
         }]
 
 
-        logger.info("[Planner] Generating Plan:\n" + planning_prompt)
+        logger.info(f"[{self.agent_role}] [Planner] Generating Plan:\n" + planning_prompt)
 
         plan_response = await litellm.acompletion(
             model=self.model,
@@ -251,7 +251,7 @@ Verify: [yes/no] - [reason]
 
         self.plan = plan_response.choices[0].message.content.strip()
         self.planner_memory.append(self.plan)
-        logger.info("[Planner] Generated Plan:\n" + str(self.plan))
+        logger.info(f"[{self.agent_role}] [Planner] Generated Plan:\n" + str(self.plan))
 
 
     def _describe_holding(self, agent):
