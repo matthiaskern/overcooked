@@ -69,16 +69,7 @@ class MultiModalOvercookedAgent:
 
         holding = self._describe_holding(agent)
         state_summary = self._describe_env(env)
-        logger.info(f"[{self.agent_role}] Plan: {str(self.plan)}")
-        logger.info(f"[{self.agent_role}] STATE SUMMARY")
-        logger.info(f"[{self.agent_role}] {str(state_summary)}")
-        logger.info(f"[{self.agent_role}] DEBUG")
-        debug_full_state = self._describe_env_debug(env)
-        logger.info(f"[{self.agent_role}] {str(debug_full_state)}")
-        rendered_grid = self._render_grid(env)
-        logger.info(f"[{self.agent_role}] GRID")
-        logger.info(f"[{self.agent_role}] {str(rendered_grid)}")
-        possible_moves = self._describe_possible_moves(env, agent)
+        logger.info(f"[{self.agent_role}] {str(state_summary)} ({agent.y},{agent.x})")
         memory_text = "\n".join(self.executor_memory)
 
         max_attempts = 5
@@ -271,15 +262,21 @@ Verify: [yes/no] - [reason]
         for i, agent in enumerate(env.agent):
             role = "Human" if i == 0 else "AI"
             holding = self._describe_holding(agent)
-            description.append(f"{role} at ({agent.x}, {agent.y}) holding: {holding}")
-        description.append("\nMap Grid (x rows, y cols):")
+            description.append(f"{role} at ({agent.y}, {agent.x}) holding: {holding}")
+
+        description.append("\nMap Grid (x, y):")
         xlen, ylen = env.xlen, env.ylen
         grid = [["" for _ in range(ylen)] for _ in range(xlen)]
+        
         for x in range(xlen):
             for y in range(ylen):
                 tile_idx = env.map[x][y]
                 tile_type = ITEMNAME[tile_idx]
-                grid[x][y] = tile_type.upper() if tile_type == "counter" else tile_type.capitalize()
+                if tile_type == "counter":
+                    grid[y][x] = "COUNTER"
+                else:
+                    grid[y][x] = "Space"
+        
         for item in env.itemList:
             label = item.rawName.capitalize()
             if isinstance(item, Food) and item.chopped:
@@ -287,113 +284,18 @@ Verify: [yes/no] - [reason]
             elif isinstance(item, Plate) and item.containing:
                 contents = ", ".join(f.rawName for f in item.containing)
                 label = f"Plate ({contents})"
-            grid[item.x][item.y] = label
+            
+            current_content = "COUNTER" if grid[item.y][item.x] == "Space" else grid[item.y][item.x]
+            grid[item.y][item.x] = f"{current_content} + {label}"
+        
         for i, agent in enumerate(env.agent):
             role = "Human" if i == 0 else f"AI{i}"
-            grid[agent.x][agent.y] = role
+            grid[agent.y][agent.x] = role + f" holding {self._describe_holding(agent)}"
+        
         for x in range(xlen):
             row = []
             for y in range(ylen):
-                row.append(f"[{x},{y}] {grid[x][y]:<18}")
+                row.append(f"[{y},{x}] {grid[y][x]:<18}")
             description.append(" ".join(row))
         return "\n".join(description)
 
-    def _render_grid(self, env):
-        width = env.width if hasattr(env, "width") else 5
-        height = env.height if hasattr(env, "height") else 5
-        grid = [["Empty" for _ in range(width)] for _ in range(height)]
-        for item in env.itemList:
-            x, y = item.x, item.y
-            name = item.rawName.lower()
-            if name == "knife":
-                grid[y][x] = "Knife"
-            elif name == "tomato":
-                desc = "Tomato"
-                if hasattr(item, "chopped") and item.chopped:
-                    desc += " (chopped)"
-                grid[y][x] = desc
-            elif name == "lettuce":
-                grid[y][x] = "Lettuce"
-            elif name == "onion":
-                grid[y][x] = "Onion"
-            elif name == "plate":
-                if item.containing:
-                    contents = ", ".join(f.rawName for f in item.containing)
-                    grid[y][x] = f"Plate ({contents})"
-                else:
-                    grid[y][x] = "Plate"
-            elif name == "delivery":
-                grid[y][x] = "Delivery"
-            elif name == "counter":
-                grid[y][x] = "Counter"
-        for idx, agent in enumerate(env.agent):
-            agent_descr = "Human" if idx == 0 else "Agent"
-            grid[agent.y][agent.x] = f"{agent_descr}{idx}"
-        for y in range(height):
-            for x in range(width):
-                if x == 0 or x == width - 1 or y == 0 or y == height - 1:
-                    grid[y][x] = "Counter"
-        output = ["Grid:"]
-        for y in range(height):
-            row = []
-            for x in range(width):
-                row.append(f"[{y},{x}] {grid[y][x]:<20}")
-            output.append(" ".join(row))
-        return "\n".join(output)
-
-    def _describe_possible_moves(self, env, agent):
-        directions = {'w': (-1, 0), 's': (1, 0), 'a': (0, -1), 'd': (0, 1)}
-        results = []
-        width = env.width if hasattr(env, "width") else 5
-        height = env.height if hasattr(env, "height") else 5
-        for dir_letter, (dy, dx) in directions.items():
-            new_row = agent.y + dy
-            new_col = agent.x + dx
-            if not (0 <= new_col < width and 0 <= new_row < height):
-                what = "Counter (Out of bounds)"
-            elif new_col == 0 or new_row == 0 or new_row == height - 1:
-                what = "Counter (Edge)"
-            else:
-                what = "empty space"
-                for i, other_agent in enumerate(env.agent):
-                    if other_agent.x == new_col and other_agent.y == new_row:
-                        what = f"Agent #{i} (Human if 0, AI if 1)"
-                        break
-                else:
-                    for item in env.itemList:
-                        if item.x == new_col and item.y == new_row:
-                            if isinstance(item, Food):
-                                what = f"{item.rawName} (chopped: {item.chopped})"
-                            elif isinstance(item, Plate):
-                                what = "Plate with " + ", ".join(f.rawName for f in item.containing) if item.containing else "Empty Plate"
-                            elif isinstance(item, Knife):
-                                what = "Cutting Station"
-                            elif isinstance(item, Delivery):
-                                what = "Delivery Counter"
-                            else:
-                                what = item.rawName
-                            break
-            results.append(f"[{dir_letter}] -> ({new_row}, {new_col}): {what}")
-        return "\n".join(results)
-
-    def _describe_env_debug(self, env):
-        parts = []
-        parts.append("Agents:")
-        for i, agent in enumerate(env.agent):
-            holding = "Nothing"
-            if agent.holding:
-                if hasattr(agent.holding, "rawName"):
-                    holding = agent.holding.rawName
-                else:
-                    holding = str(agent.holding)
-            parts.append(f"Agent #{i} at ({agent.x},{agent.y}) holding: {holding}")
-        parts.append("\nItems on map:")
-        for item in env.itemList:
-            if hasattr(item, "chopped"):
-                status = f"Chopped: {item.chopped} ({item.cur_chopped_times}/{item.required_chopped_times})"
-            elif hasattr(item, "containing"):
-                status = f"Contains: {', '.join(f.rawName for f in item.containing)}" if item.containing else "Empty"
-            else:
-                status = "N/A"
-            parts.append(f"{item.rawName} at ({item.x},{item.y}) - {status}")
-        return "\n".join(parts)
