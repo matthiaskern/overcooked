@@ -72,6 +72,7 @@ class Player:
                 llm_model=llm_model,
                 environment=self.env,
                 horizon_length=horizon_length,
+                agent_idx=1,
             )
         elif agent == "multimodal":
             self.agent = MultiModalAgent(
@@ -80,7 +81,8 @@ class Player:
                 inference_only=True,
                 llm_model=llm_model,
                 environment=self.env,
-                horizon_length=horizon_length
+                horizon_length=horizon_length,
+                agent_idx=1
             )
         elif agent == "human":
             self.agent = "human"
@@ -103,6 +105,7 @@ class Player:
                 llm_model=llm_model,
                 environment=self.env,
                 horizon_length=horizon_length,
+                agent_idx=0,
             )
             print("Human player replaced with LLM Agent")
         elif human == "multimodal":
@@ -112,7 +115,8 @@ class Player:
                 inference_only=True,
                 llm_model=llm_model,
                 environment=self.env,
-                horizon_length=horizon_length
+                horizon_length=horizon_length,
+                agent_idx=0
             )
             print("Human player replaced with Multimodal Agent")
         elif human == "stationary":
@@ -242,9 +246,7 @@ class Player:
                     print("[WARNING] HUMAN AGENT DID NOT MOVE!")
             
             logger.info(f"Human action result: {input_human[0]}, {'Success' if human_moved else 'Failed to move'}")
-
-            if hasattr(self.agent, "last_result"):
-                self.agent.last_result = f"Executed: {input_ai[0]}, {'Success' if ai_moved else 'Failed to move'}"
+            logger.info(f"Agent action result: {input_ai[0]}, {'Success' if ai_moved else 'Failed to move'}")
 
             row.append(new_obs["human"])
             row.append(reward["human"])
