@@ -6,6 +6,7 @@ from environment.Overcooked import ITEMNAME
 import base64
 import os
 import logging
+import asyncio
 
 logger = logging.getLogger('multimodal_agent')
 
@@ -20,7 +21,7 @@ class MultiModalOvercookedAgent:
         self.image_step_counter = 0
         self.agent_role = None
 
-    def call_llm_with_full_context(self, prompt, image_path):
+    async def call_llm_with_full_context(self, prompt, image_path):
         with open(image_path, "rb") as img_file:
             b64_image = base64.b64encode(img_file.read()).decode("utf-8")
 
@@ -35,7 +36,7 @@ class MultiModalOvercookedAgent:
         logger.info("===CALLING LLM===")
         logger.info(prompt)
 
-        response = litellm.completion(
+        response = await litellm.acompletion(
             model=self.model,
             messages=messages,
             max_tokens=10000,
@@ -53,13 +54,13 @@ class MultiModalOvercookedAgent:
         match = re.search(r"Action:\s*\[?([wsadq])\]?", llm_output, re.IGNORECASE)
         return match.group(1).lower() if match else "q"
 
-    def get_action(self, env, image_path, agent_idx, last_action=None, last_result=None):
+    async def get_action(self, env, image_path, agent_idx, last_action=None, last_result=None):
         agent = env.agent[agent_idx]
         task = ", ".join(env.task) if isinstance(env.task, list) else env.task
         
         self.agent_role = "Human" if agent_idx == 0 else "AI"
 
-        self.update_plan(task)
+        await self.update_plan(task)
         if not self.plan:
             logger.info("[ERROR] No plan was generated.")
             self.plan = "No plan available."
@@ -146,7 +147,7 @@ Action: [w/a/s/d/q] - [reason]
 Verify: [yes/no] - [reason]
 """
 
-            response = self.call_llm_with_full_context(prompt, image_path)
+            response = await self.call_llm_with_full_context(prompt, image_path)
             self.executor_memory.append(response)
 
             action_letter = self.extract_action_and_verify(response)
@@ -169,7 +170,7 @@ Verify: [yes/no] - [reason]
 
         return action if verified == "yes" and action else "w"
 
-    def update_plan(self, task):
+    async def update_plan(self, task):
         #image_path = f"step_{self.image_step_counter}.png"
         image_path = "step.png"
         if not os.path.exists(image_path):
@@ -201,7 +202,7 @@ Verify: [yes/no] - [reason]
             ]
         }]
 
-        description_response = litellm.completion(
+        description_response = await litellm.acompletion(
             model=self.model,
             messages=messages,
             max_tokens=10000,
@@ -241,7 +242,7 @@ Verify: [yes/no] - [reason]
 
         logger.info("[Planner] Generating Plan:\n" + planning_prompt)
 
-        plan_response = litellm.completion(
+        plan_response = await litellm.acompletion(
             model=self.model,
             messages=messages,
             max_tokens=10000,

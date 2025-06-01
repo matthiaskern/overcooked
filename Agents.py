@@ -15,7 +15,7 @@ class AlwaysStationaryRLM(RLModule):
         super().__init__(*args, **kwargs)
 
     @override(RLModule)
-    def _forward_inference(self, batch, **kwargs):
+    async def _forward_inference(self, batch, **kwargs):
         ret = [4] * len(batch[Columns.OBS])
         return {Columns.ACTIONS: np.array(ret)}
 
@@ -43,7 +43,7 @@ class RandomRLM(RLModule):
         super().__init__(*args, **kwargs)
 
     @override(RLModule)
-    def _forward_inference(self, batch, **kwargs):
+    async def _forward_inference(self, batch, **kwargs):
         ret = [self.action_space.sample()] * len(batch[Columns.OBS])
         return {Columns.ACTIONS: np.array(ret)}
 
@@ -82,7 +82,7 @@ class LLMAgent(RLModule):
         self.last_action = None
         self.last_result = None
 
-    def _forward_inference(self, input_dict):
+    async def _forward_inference(self, input_dict):
         action_letter = self.llm.get_action(self.env, agent_idx=self.agent_idx, last_action=self.last_action, last_result=self.last_result)
         self.last_action = action_letter
         action_index = ACTION_MAPPING.get(action_letter, 4)
@@ -97,10 +97,10 @@ class MultiModalAgent(RLModule):
         self.last_action = None
         self.last_result = None
 
-    def _forward_inference(self, input_dict):
+    async def _forward_inference(self, input_dict):
         #image_path = f"step_{self.env.step_count}.png"
         image_path = "step.png"
-        action_letter = self.llm.get_action(self.env, image_path, agent_idx=self.agent_idx, last_action=self.last_action, last_result=self.last_result)
+        action_letter = await self.llm.get_action(self.env, image_path, agent_idx=self.agent_idx, last_action=self.last_action, last_result=self.last_result)
         self.last_action = action_letter
         action_index = ACTION_MAPPING.get(action_letter, 4)
         return {"actions": [action_index]}

@@ -5,6 +5,7 @@ from Agents import *
 import pandas as pd
 import imageio
 import logging
+import asyncio
 
 logger = logging.getLogger('human_player')
 
@@ -158,6 +159,9 @@ class Player:
         print("===========================\n")
 
     def run(self):
+        return asyncio.run(self.run_async())
+    
+    async def run_async(self):
         self.env.game.on_init()
         new_obs, _ = self.env.reset()
         self.env.render()
@@ -191,28 +195,31 @@ class Player:
             prev_human_pos = (self.env.agent[0].x, self.env.agent[0].y)
 
             if self.human_agent:
-                input_human_action = self.human_agent._forward_inference(
-                    {"obs": [obs["human"]]}
-                )["actions"]
+                human_task = self.human_agent._forward_inference({"obs": [obs["human"]]})
+                ai_task = self.agent._forward_inference({"obs": [obs["ai"]]})
+                
+                human_result, ai_result = await asyncio.gather(human_task, ai_task)
+                
+                input_human_action = human_result["actions"]
                 input_human = [
                     list(self.ACTION_MAPPING.keys())[
                         list(self.ACTION_MAPPING.values()).index(input_human_action[0])
                     ]
                 ]
+                input_ai = ai_result["actions"]
+                
                 if self.debug:
                     print(f"Human Agent Action: {input_human[0]}")
                 logger.info(f"Human agent action: {input_human[0]}")
             else:
-                # Use real human input
                 input_human = input("Your next input: ").strip().split(" ")
                 logger.info(f"Human input: {input_human[0] if input_human else 'None'}")
+                
+                if input_human == ["p"]:
+                    self.save_data(data)
+                    continue
 
-            if input_human == ["p"]:
-                self.save_data(data)
-                continue
-
-            # Get AI agent action
-            input_ai = self.agent._forward_inference({"obs": [obs["ai"]]})["actions"]
+                input_ai = await self.agent._forward_inference({"obs": [obs["ai"]]})["actions"]
             # print("AI Action was: " + str(input_ai))
             input_ai = [
                 list(self.ACTION_MAPPING.keys())[
