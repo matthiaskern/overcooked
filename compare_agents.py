@@ -6,10 +6,11 @@ import time
 import logging
 from play import Player, TASKLIST
 
-def run_with_configuration(config_name, ai_agent, human_agent, params, output_file=None, max_steps=300):
+def run_with_configuration(config_name, ai_agent, human_agent, params, output_file=None, max_steps=50):
     player_params = copy.deepcopy(params)
     player_params['agent'] = ai_agent
     player_params['human'] = human_agent
+    player_params['max_steps'] = max_steps
 
     print(f"\n===== Running {config_name} =====")
     print(f"AI Agent: {ai_agent}, Human Agent: {human_agent}")
@@ -100,7 +101,8 @@ def compare_configurations(configurations, trials=3, **params):
                 ai_agent=ai_agent,
                 human_agent=human_agent,
                 params=params,
-                output_file=output_file
+                output_file=output_file,
+                max_steps=params.get('max_steps', 50)
             )
 
             config_results.append(result)
@@ -161,6 +163,7 @@ if __name__ == '__main__':
     parser.add_argument('--trials', type=int, default=3, help='Number of trials per configuration')
     parser.add_argument('--configs', type=str, nargs='+', default=['llm_vs_stationary', 'llm_vs_random'],
                       help='Configurations to compare')
+    parser.add_argument('--max_steps', type=int, default=50, help='Maximum number of steps before stopping a run')
 
     args = parser.parse_args()
 
@@ -197,7 +200,8 @@ if __name__ == '__main__':
             'mode': args.mode,
             'debug': args.debug,
             'llm_model': args.llm_model,
-            'horizon_length': horizon_length
+            'horizon_length': horizon_length,
+            'max_steps': args.max_steps
         }
 
         print(f"\n===== RUNNING WITH HORIZON LENGTH {horizon_length} =====")

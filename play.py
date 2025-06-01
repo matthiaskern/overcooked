@@ -42,6 +42,7 @@ class Player:
         llm_model=None,
         human="interactive",
         horizon_length=3,
+        max_steps=50,
     ):
         self.env_params = {
             "grid_dim": grid_dim,
@@ -134,6 +135,7 @@ class Player:
         self.discount = 1
         self.step = 0
         self.debug = debug
+        self.max_steps = max_steps
 
     def print_state_debug(self):
         if not self.debug:
@@ -188,6 +190,10 @@ class Player:
             obs = new_obs
             row = [obs["human"]]
             self.step += 1
+
+            if self.step > self.max_steps:
+                self.save_data(data)
+                break
 
             self.print_state_debug()
 
