@@ -33,8 +33,8 @@ class MultiModalOvercookedAgent:
             ]
         }]
 
-        logger.info(f"[{self.agent_role}] ===CALLING LLM===")
-        logger.info(f"[{self.agent_role}] {prompt}")
+        # logger.info(f"[{self.agent_role}] ===CALLING LLM===")
+        # logger.info(f"[{self.agent_role}] {prompt}")
 
         response = await litellm.acompletion(
             model=self.model,
@@ -231,7 +231,7 @@ Verify: [yes/no] - [reason]
         }]
 
 
-        logger.info(f"[{self.agent_role}] [Planner] Generating Plan:\n" + planning_prompt)
+        # logger.info(f"[{self.agent_role}] [Planner] Generating Plan:\n" + planning_prompt)
 
         plan_response = await litellm.acompletion(
             model=self.model,
