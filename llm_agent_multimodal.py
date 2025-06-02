@@ -249,10 +249,10 @@ Verify: [yes/no] - [reason]
         if not agent.holding:
             return "Nothing"
         if isinstance(agent.holding, Food):
-            return f"{agent.holding.rawName} (Chopped: {agent.holding.chopped})"
+            return f"{agent.holding.name}"
         if isinstance(agent.holding, Plate):
             if agent.holding.containing:
-                return "Plate with " + ", ".join(f.rawName for f in agent.holding.containing)
+                return "Plate with " +  agent.holding.containedName
             return "Empty Plate"
         return "Unknown item"
 
@@ -278,11 +278,14 @@ Verify: [yes/no] - [reason]
                     grid[y][x] = "Space"
         
         for item in env.itemList:
-            label = item.rawName.capitalize()
+            if isinstance(item, Agent):
+                continue
+
+            label = item.name
             if isinstance(item, Food) and item.chopped:
                 label += " (chopped)"
             elif isinstance(item, Plate) and item.containing:
-                contents = ", ".join(f.rawName for f in item.containing)
+                contents = item.containedName
                 label = f"Plate ({contents})"
             
             current_content = "COUNTER" if grid[item.y][item.x] == "Space" else grid[item.y][item.x]
