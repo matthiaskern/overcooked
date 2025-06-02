@@ -1,7 +1,7 @@
 import re
 import litellm
 from collections import deque
-from environment.items import Delivery, Food, Knife, Plate
+from environment.items import Agent, Delivery, Food, Knife, Plate
 from environment.Overcooked import ITEMNAME
 import base64
 import os
@@ -58,10 +58,10 @@ class MultiModalOvercookedAgent:
         agent = env.agent[agent_idx]
         task = ", ".join(env.task) if isinstance(env.task, list) else env.task
         
-        self.agent_role = "Human" if agent_idx == 0 else "AI"
+        self.agent_role = "Human (not blue)" if agent_idx == 0 else "AI (blue)"
 
-        await self.update_plan(task)
         if not self.plan:
+            await self.update_plan(task)
             logger.info(f"[{self.agent_role}] [ERROR] No plan was generated.")
             self.plan = "No plan available."
 
@@ -94,11 +94,11 @@ class MultiModalOvercookedAgent:
             
             prompt = f"""You are the {self.agent_role} agent in Overcooked. Task: {task}
 
-Your position: ({agent.x}, {agent.y})
+Your position: ({agent.y}, {agent.x})
 Holding: {holding}
 
-Last action: {last_action or "None"}
-Result: {last_result or "None"} — Movement status: {moved}
+Past results:
+{memory_text}
 
 Plan:
 {self.plan}
@@ -107,31 +107,30 @@ Environment (Summary):
 {state_summary}
 
 
-
-Memory:
-{memory_text}
-
 INSTRUCTIONS:
 
 - Your immediate goal is one of: [get ingredient, chop ingredient, pick plate, plate food, deliver dish].
-- Construct a ROUTE of exactly {self.horizon_length} steps: list of (row, col) next steps needed to reach a tile next to the target (not directly on the target if it's an item).
-- You will also get an image of the game state. Inspect it carefully. You are the {self.agent_role.lower()}. 
+- Construct a ROUTE of exactly {self.horizon_length} steps: list of (x, y) next steps needed to reach a tile next to the target (not directly on the target if it's an item).
 - {agent_identity}
+- The other player will move at the same time as you.
 - You cannot move where onto a tile where another player already is.
 - You cannot move into counters.
-- Collaborate with other players as needed.
+- You cannot exchange items with other players directly, i.e. you need to place food on a counter before plating or need to have a plate on a counter before putting food on it.
 IMPORTANT:
+- When plating, the player who first has the plate should plate and deliver.
 - [w]: Move up or perform an action on the tile above
 - [a]: Move left or perform an action on the tile to the left
 - [s]: Move down or perform an action on the tile below
 - [d]: Move right or perform an action on the tile to the right
 - [q]: Do nothing
-- Remember, coords are not given in x,y but in row/col. (i.e. to navigate vertically we need to change x and when we navigate horizontally we change y)
+- Always evaluate, what is the most optimal action for me to take to complete the task, and assume that the other player will also take the most optimal action. 
+- We always need to be planning one step ahead, as each player's next action will be executed simultaneously.'
 - If the previous action failed to move, re-evaluate and fix your decision.
 
 
 Respond strictly in the following format:
-Thought: I am seeing ..., my current position is X, my current goal is Y, the other player is doing X, therefore I should ...
+Observation: I am at position (x/y), on top of me is a counter, left of me is free, right of me is player... 
+Thought: I am seeing ..., my current position is (x/y), my current goal is Y, my last action was X, the other player's last action was Y, the other player is likely doing X or moving to (x/y), therefore I should ...
 Plan: ...
 Route: ...
 Action: [w/a/s/d/q] - [reason]
@@ -181,6 +180,7 @@ Verify: [yes/no] - [reason]
             "- Tools: knives/cutting boards\n"
             "- Delivery counter (usually marked with *)\n"
             "- Agent positions and what they are holding (if visible)\n"
+            "- Agent being a human or AI agent\n"
             "Format:\n"
             "Observation: ...\n"
         )
@@ -220,6 +220,7 @@ Verify: [yes/no] - [reason]
             "- [q] does nothing.\n"
             "- Chopping takes multiple moves.\n"
             "- Food must be placed on a plate before delivery.\n"
+            "- You can only plate food when either plate or food is on a counter. You cannot plate food between agents.\n"
             "- Plates and delivery counters may be far apart.\n"
         )
 
