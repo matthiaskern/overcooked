@@ -1,0 +1,4 @@
+Configuration,AI Agent,Human Agent,Horizon Length,Completion Rate,Avg Steps
+multimodal_vs_multimodal,multimodal,multimodal,3,0.0%,50.0
+multimodal_vs_multimodal,multimodal,multimodal,5,66.7%,30.3
+multimodal_vs_multimodal,multimodal,multimodal,9,33.3%,40.7

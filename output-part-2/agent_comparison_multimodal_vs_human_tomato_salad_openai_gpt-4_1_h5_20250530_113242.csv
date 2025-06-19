@@ -1,0 +1,2 @@
+Configuration,AI Agent,Human Agent,Horizon Length,Completion Rate,Avg Steps
+multimodal_vs_human,multimodal,human,5,100.0%,20.0
