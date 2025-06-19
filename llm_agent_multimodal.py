@@ -12,7 +12,8 @@ logger = logging.getLogger('multimodal_agent')
 
 
 class MultiModalOvercookedAgent:
-    def __init__(self, model="openai/gpt-4.1", memory_limit=10, horizon_length=3):
+    def __init__(self, model="openai/gpt-4.1", memory_limit=10, horizon_length=3,
+                 include_image_in_action_prompt=True):
         self.model = model
         self.planner_memory = deque(maxlen=memory_limit)
         self.executor_memory = deque(maxlen=memory_limit)
@@ -20,17 +21,19 @@ class MultiModalOvercookedAgent:
         self.horizon_length = horizon_length
         self.image_step_counter = 0
         self.agent_role = None
+        self.include_image_in_action_prompt = include_image_in_action_prompt
 
     async def call_llm_with_full_context(self, prompt, image_path):
-        with open(image_path, "rb") as img_file:
-            b64_image = base64.b64encode(img_file.read()).decode("utf-8")
+        content = [{"type": "text", "text": prompt.strip()}]
+        
+        if self.include_image_in_action_prompt:
+            with open(image_path, "rb") as img_file:
+                b64_image = base64.b64encode(img_file.read()).decode("utf-8")
+            content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_image}"}})
 
         messages = [{
             "role": "user",
-            "content": [
-                {"type": "text", "text": prompt.strip()},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_image}"}}
-            ]
+            "content": content
         }]
 
         # logger.info(f"[{self.agent_role}] ===CALLING LLM===")
